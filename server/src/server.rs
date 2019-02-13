@@ -106,6 +106,10 @@ fn shutdown_request(ctx: &mut ServerContext) -> MessageResult<Value> {
 
 // Notifications
 
+fn get_params<P: serde::de::DeserializeOwned>(params: Value) -> Result<P> {
+    serde_json::from_value::<P>(params).map_err(|err| Error::ProtocolError(err.to_string()))
+}
+
 fn handle_notification(
     _write: &mut impl Write,
     ctx: &mut ServerContext,
@@ -113,8 +117,16 @@ fn handle_notification(
 ) -> Result<()> {
     let method = msg.method.as_str();
     eprintln!("Got notification: {}", method);
-    match method {
-        "exit" => exit_notification(ctx),
+
+    use lsp_types::notification::*;
+    match msg.method.as_str() {
+        Exit::METHOD => exit_notification(ctx),
+        DidOpenTextDocument::METHOD => {
+            get_params(msg.params).and_then(|params| did_open_text_document(params))
+        }
+        DidChangeTextDocument::METHOD => {
+            get_params(msg.params).and_then(|params| did_change_text_document(params))
+        }
         _ => unimplemented!(),
     }
 }
@@ -128,6 +140,28 @@ fn exit_notification(ctx: &mut ServerContext) -> Result<()> {
     }
     Ok(())
 }
+
+fn did_open_text_document(_params: lsp_types::DidOpenTextDocumentParams) -> Result<()> {
+    use lsp_types::notification::Notification;
+    eprintln!(
+        "Received {}: {:?}",
+        lsp_types::notification::DidOpenTextDocument::METHOD,
+        _params.text_document
+    );
+    Ok(())
+}
+
+fn did_change_text_document(_params: lsp_types::DidChangeTextDocumentParams) -> Result<()> {
+    use lsp_types::notification::Notification;
+    eprintln!(
+        "Received {}: {:?}",
+        lsp_types::notification::DidChangeTextDocument::METHOD,
+        _params.text_document
+    );
+    Ok(())
+}
+
+// Initialization
 
 fn initialize(
     reader: &mut impl BufRead,
