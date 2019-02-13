@@ -1,17 +1,16 @@
-use std::io::{self, BufReader, BufWriter, Write};
+use std::io::{self, BufRead, BufReader, BufWriter, Write};
 
 use serde_json::Value;
 
 use crate::protocol::{
-    read_message, write_error_response, write_success_response, ErrorCodes, Message,
-    NotificationMessage, RequestMessage, ResponseError,
+    read_message, write_error_response, write_success_response, write_success_result, ErrorCodes,
+    Message, NotificationMessage, RequestMessage, ResponseError,
 };
 
-use crate::Result;
+use crate::{Error, Result};
 
 #[derive(PartialEq)]
 enum State {
-    Initializing,
     Initialized,
     ShuttingDown,
 }
@@ -25,61 +24,11 @@ struct ServerContext {
 impl ServerContext {
     fn new() -> ServerContext {
         ServerContext {
-            state: State::Initializing,
+            state: State::Initialized,
             exit_code: None,
         }
     }
 }
-
-type MessageResult<T> = std::result::Result<T, ResponseError>;
-
-// Request handlers
-
-// https://microsoft.github.io/language-server-protocol/specification#initialize
-fn initialize(ctx: &mut ServerContext, msg: RequestMessage) -> MessageResult<Value> {
-    if ctx.state != State::Initializing {
-        let error_message = "The server has already initialized".to_owned();
-        return Err(ResponseError::new(
-            ErrorCodes::InvalidRequest,
-            error_message,
-        ));
-    }
-
-    let params = serde_json::from_value::<lsp_types::InitializeParams>(msg.params);
-    let params = params.map_err(|err| {
-        let error_message = err.to_string();
-        ResponseError::new(ErrorCodes::ParseError, error_message)
-    })?;
-
-    eprintln!("{:?}", params.process_id);
-
-    let res = lsp_types::InitializeResult {
-        capabilities: create_server_capabilities(),
-    };
-
-    let res = serde_json::to_value(&res).map_err(|err| {
-        let error_message = err.to_string();
-        ResponseError::new(ErrorCodes::InternalError, error_message)
-    })?;
-
-    ctx.state = State::Initialized;
-
-    Ok(res)
-}
-
-// https://microsoft.github.io/language-server-protocol/specification#shutdown
-fn shutdown(ctx: &mut ServerContext) -> MessageResult<Value> {
-    ctx.state = State::ShuttingDown;
-    Ok(Value::Null)
-}
-
-// Notification handlers
-
-fn initialized(_ctx: &mut ServerContext) -> MessageResult<()> {
-    Ok(())
-}
-
-// ---
 
 fn create_server_capabilities() -> lsp_types::ServerCapabilities {
     let options = lsp_types::TextDocumentSyncOptions {
@@ -117,6 +66,8 @@ fn create_server_capabilities() -> lsp_types::ServerCapabilities {
     }
 }
 
+// Requests
+
 fn handle_request(
     writer: &mut impl Write,
     ctx: &mut ServerContext,
@@ -125,25 +76,35 @@ fn handle_request(
     let id = msg.id;
     let method = msg.method.as_str();
 
-    // Send an error when not initialized as the spec says.
-    if ctx.state == State::Initializing && method != "initialize" {
-        let error_message = "Server not initialized".to_owned();
-        let error = ResponseError::new(ErrorCodes::ServerNotInitialized, error_message);
-        return write_error_response(writer, id, error);
-    }
-
-    let response = match method {
-        "initialize" => initialize(ctx, msg),
-        "shutdown" => shutdown(ctx),
+    let res = match method {
+        "initialize" => initialize_request(),
+        "shutdown" => shutdown_request(ctx),
         _ => unimplemented!(),
     };
-
-    match response {
-        Ok(result) => write_success_response(writer, id, result)?,
+    match res {
+        Ok(res) => write_success_response(writer, id, res)?,
         Err(error) => write_error_response(writer, id, error)?,
     }
     Ok(())
 }
+
+type MessageResult<T> = std::result::Result<T, ResponseError>;
+
+fn initialize_request() -> MessageResult<Value> {
+    // The server has been initialized already.
+    let error_message = "Unexpected initialize message".to_owned();
+    Err(ResponseError::new(
+        ErrorCodes::ServerNotInitialized,
+        error_message,
+    ))
+}
+
+fn shutdown_request(ctx: &mut ServerContext) -> MessageResult<Value> {
+    ctx.state = State::ShuttingDown;
+    Ok(Value::Null)
+}
+
+// Notifications
 
 fn handle_notification(
     _write: &mut impl Write,
@@ -151,41 +112,63 @@ fn handle_notification(
     msg: NotificationMessage,
 ) -> Result<()> {
     let method = msg.method.as_str();
-
     eprintln!("Got notification: {}", method);
-
-    if method == "exit" {
-        // https://microsoft.github.io/language-server-protocol/specification#exit
-        if ctx.state == State::ShuttingDown {
-            ctx.exit_code = Some(0);
-        } else {
-            ctx.exit_code = Some(1);
-        }
-        return Ok(());
-    }
-
-    // Drop notifications when not initialized as the spec says.
-    if ctx.state == State::Initializing {
-        return Ok(());
-    }
-
-    let result = match method {
-        "initialized" => initialized(ctx),
+    match method {
+        "exit" => exit_notification(ctx),
         _ => unimplemented!(),
+    }
+}
+
+fn exit_notification(ctx: &mut ServerContext) -> Result<()> {
+    // https://microsoft.github.io/language-server-protocol/specification#exit
+    if ctx.state == State::ShuttingDown {
+        ctx.exit_code = Some(0);
+    } else {
+        ctx.exit_code = Some(1);
+    }
+    Ok(())
+}
+
+fn initialize(
+    reader: &mut impl BufRead,
+    writer: &mut impl Write,
+) -> Result<lsp_types::InitializeParams> {
+    let message = read_message(reader)?;
+
+    let (id, params) = match message {
+        Message::Request(req) => req.cast::<lsp_types::request::Initialize>()?,
+        _ => {
+            // TODO: Gracefully handle `exit` and `shutdown` messages.
+            let error_message = format!("Expected initialize message but got {:?}", message);
+            return Err(Error::ProtocolError(error_message));
+        }
     };
 
-    if result.is_err() {
-        // Ignore errors as notifications must not send a response back.
-        // TODO: Log errors and/or update server state.
-    }
+    let capabilities = create_server_capabilities();
+    let res = lsp_types::InitializeResult {
+        capabilities: capabilities,
+    };
+    write_success_result(writer, id, res)?;
 
-    Ok(())
+    let message = read_message(reader)?;
+    match message {
+        Message::Notofication(notif) => notif.cast::<lsp_types::notification::Initialized>()?,
+        _ => {
+            let error_message = format!("Expected initialized message but got {:?}", message);
+            return Err(Error::ProtocolError(error_message));
+        }
+    };
+
+    Ok(params)
 }
 
 // Returns exit code.
 pub fn start() -> Result<i32> {
     let mut reader = BufReader::new(io::stdin());
     let mut writer = BufWriter::new(io::stdout());
+
+    let _params = initialize(&mut reader, &mut writer)?;
+
     let mut ctx = ServerContext::new();
 
     loop {

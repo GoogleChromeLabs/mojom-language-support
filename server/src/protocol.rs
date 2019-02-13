@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 
 use serde::{Deserialize, Serialize};
-use serde_json::{from_slice, Value};
+use serde_json::{from_slice, from_value, Value};
 
 use crate::{Error, Result};
 
@@ -24,6 +24,24 @@ pub struct RequestMessage {
     pub id: u64,
     pub method: String,
     pub params: Value,
+}
+
+impl RequestMessage {
+    pub fn cast<R>(self) -> Result<(u64, R::Params)>
+    where
+        R: lsp_types::request::Request,
+        R::Params: serde::de::DeserializeOwned,
+    {
+        if self.method != R::METHOD {
+            let error_message = format!("Expected {} but got {}", R::METHOD, self.method);
+            return Err(Error::ProtocolError(error_message));
+        }
+        let params = from_value(self.params).map_err(|err| {
+            let error_message = format!("Failed to parse {} message.\n{:?}", R::METHOD, err);
+            Error::ProtocolError(error_message)
+        })?;
+        Ok((self.id, params))
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -96,6 +114,24 @@ pub struct NotificationMessage {
     pub params: Value,
 }
 
+impl NotificationMessage {
+    pub fn cast<R>(self) -> Result<R::Params>
+    where
+        R: lsp_types::notification::Notification,
+        R::Params: serde::de::DeserializeOwned,
+    {
+        if self.method != R::METHOD {
+            let error_message = format!("Expected {} but got {}", R::METHOD, self.method);
+            return Err(Error::ProtocolError(error_message));
+        }
+        let params = from_value(self.params).map_err(|err| {
+            let error_message = format!("Failed to parse {} message.\n{:?}", R::METHOD, err);
+            Error::ProtocolError(error_message)
+        })?;
+        Ok(params)
+    }
+}
+
 // https://microsoft.github.io/language-server-protocol/specification#header-part
 struct Header {
     pub content_length: usize,
@@ -160,7 +196,7 @@ struct JsonRpcResponseMessage<'a> {
     pub error: Option<ResponseError>,
 }
 
-fn write_message(writer: &mut impl Write, message: JsonRpcResponseMessage) -> Result<()> {
+fn write_message<M: Serialize>(writer: &mut impl Write, message: M) -> Result<()> {
     let message = serde_json::to_string(&message).map_err(|err| {
         let error_message = err.to_string();
         Error::ProtocolError(error_message)
@@ -172,6 +208,17 @@ fn write_message(writer: &mut impl Write, message: JsonRpcResponseMessage) -> Re
     writer.write_all(message.as_bytes())?;
     writer.flush()?;
     Ok(())
+}
+
+pub fn write_success_result<R>(writer: &mut impl Write, id: u64, res: R) -> Result<()>
+where
+    R: serde::Serialize,
+{
+    let res = serde_json::to_value(&res).map_err(|err| {
+        let error_message = err.to_string();
+        Error::ProtocolError(error_message)
+    })?;
+    write_success_response(writer, id, res)
 }
 
 pub fn write_success_response(writer: &mut impl Write, id: u64, result: Value) -> Result<()> {
@@ -190,6 +237,14 @@ pub fn write_error_response(writer: &mut impl Write, id: u64, error: ResponseErr
         id: id,
         result: None,
         error: Some(error),
+    };
+    write_message(writer, message)
+}
+
+pub fn _write_notification(writer: &mut impl Write, method: &str, params: Value) -> Result<()> {
+    let message = NotificationMessage {
+        method: method.to_string(),
+        params: params,
     };
     write_message(writer, message)
 }

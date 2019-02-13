@@ -6,6 +6,8 @@ extern crate serde_json;
 pub enum Error {
     IoError(std::io::Error),
     ProtocolError(String),
+    // Used to indicate an error occurred while handling a notification.
+    NotificationHandleError(String),
 }
 
 impl From<std::io::Error> for Error {
