@@ -15,9 +15,18 @@ pub enum Definition<'a> {
     Interface(interface::Interface<'a>),
 }
 
+pub struct Mojom<'a> {
+    pub definitions: Vec<Definition<'a>>,
+}
+
 /// parses `input`.
-pub fn parse(input: &str) -> Definition {
+pub fn parse(input: &str) -> Result<Mojom, nom::Err<Span>> {
     let input = Span::new(input.into());
-    let res = interface::interface(input).unwrap().1;
-    Definition::Interface(res)
+    interface::interface(input).map(|intr| {
+        let intr = intr.1;
+        let definitions = vec![Definition::Interface(intr)];
+        Mojom {
+            definitions: definitions,
+        }
+    })
 }

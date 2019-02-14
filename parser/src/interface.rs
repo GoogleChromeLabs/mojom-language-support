@@ -27,7 +27,7 @@ mod tests {
 
     #[test]
     fn test_interface() {
-        let input = Span::new("interface MyInterface {};".into());
+        let input = Span::new("interface MyInterface {\n\t\n};\n".into());
         let res = interface(input).unwrap().1;
         assert_eq!("MyInterface", res.name.value());
     }
