@@ -2,6 +2,8 @@ extern crate lsp_types;
 extern crate serde;
 extern crate serde_json;
 
+extern crate mojom_parser;
+
 #[derive(Debug)]
 pub enum Error {
     IoError(std::io::Error),

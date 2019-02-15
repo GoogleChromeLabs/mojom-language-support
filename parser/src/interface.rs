@@ -30,5 +30,8 @@ mod tests {
         let input = Span::new("interface MyInterface {\n\t\n};\n".into());
         let res = interface(input).unwrap().1;
         assert_eq!("MyInterface", res.name.value());
+
+        let input = Span::new("interface MyInterface { a } ;".into());
+        assert!(interface(input).is_err());
     }
 }

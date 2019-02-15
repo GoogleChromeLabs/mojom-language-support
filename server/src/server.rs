@@ -3,8 +3,8 @@ use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use serde_json::Value;
 
 use crate::protocol::{
-    read_message, write_error_response, write_success_response, write_success_result, ErrorCodes,
-    Message, NotificationMessage, RequestMessage, ResponseError,
+    read_message, write_error_response, write_notification, write_success_response,
+    write_success_result, ErrorCodes, Message, NotificationMessage, RequestMessage, ResponseError,
 };
 
 use crate::{Error, Result};
@@ -17,6 +17,8 @@ enum State {
 
 struct ServerContext {
     state: State,
+    // True when the previous text document has errors.
+    has_error: bool,
     // Set when `exit` notification is received.
     exit_code: Option<i32>,
 }
@@ -25,6 +27,7 @@ impl ServerContext {
     fn new() -> ServerContext {
         ServerContext {
             state: State::Initialized,
+            has_error: false,
             exit_code: None,
         }
     }
@@ -111,7 +114,7 @@ fn get_params<P: serde::de::DeserializeOwned>(params: Value) -> Result<P> {
 }
 
 fn handle_notification(
-    _write: &mut impl Write,
+    writer: &mut impl Write,
     ctx: &mut ServerContext,
     msg: NotificationMessage,
 ) -> Result<()> {
@@ -122,12 +125,70 @@ fn handle_notification(
     match msg.method.as_str() {
         Exit::METHOD => exit_notification(ctx),
         DidOpenTextDocument::METHOD => {
-            get_params(msg.params).and_then(|params| did_open_text_document(params))
+            get_params(msg.params).and_then(|params| did_open_text_document(writer, ctx, params))
         }
         DidChangeTextDocument::METHOD => {
-            get_params(msg.params).and_then(|params| did_change_text_document(params))
+            get_params(msg.params).and_then(|params| did_change_text_document(writer, ctx, params))
         }
         _ => unimplemented!(),
+    }
+}
+
+fn publish_diagnotics(
+    writer: &mut impl Write,
+    params: lsp_types::PublishDiagnosticsParams,
+) -> Result<()> {
+    // TODO: Don't use unwrap().
+    let params = serde_json::to_value(&params).unwrap();
+    write_notification(writer, "textDocument/publishDiagnostics", params)
+}
+
+fn _check_syntax(
+    writer: &mut impl Write,
+    ctx: &mut ServerContext,
+    uri: lsp_types::Url,
+    input: &str,
+) -> Result<()> {
+    match mojom_parser::parse(input) {
+        Ok(_) => {
+            if ctx.has_error {
+                ctx.has_error = false;
+                let params = lsp_types::PublishDiagnosticsParams {
+                    uri: uri,
+                    diagnostics: vec![],
+                };
+                publish_diagnotics(writer, params)?;
+            }
+            Ok(())
+        }
+        Err(mojom_parser::Error::SyntaxError(span)) => {
+            ctx.has_error = true;
+            let start = lsp_types::Position {
+                line: span.line as u64 - 1,
+                character: span.get_column() as u64,
+            };
+            let end = lsp_types::Position {
+                line: span.line as u64 - 1,
+                character: (span.get_column() + span.fragment.len()) as u64,
+            };
+            let range = lsp_types::Range {
+                start: start,
+                end: end,
+            };
+            let diagostic = lsp_types::Diagnostic {
+                range: range,
+                severity: None,
+                code: None,
+                source: None,
+                message: "Syntax error".to_owned(),
+                related_information: None,
+            };
+            let params = lsp_types::PublishDiagnosticsParams {
+                uri: uri,
+                diagnostics: vec![diagostic],
+            };
+            publish_diagnotics(writer, params)
+        }
     }
 }
 
@@ -141,24 +202,28 @@ fn exit_notification(ctx: &mut ServerContext) -> Result<()> {
     Ok(())
 }
 
-fn did_open_text_document(_params: lsp_types::DidOpenTextDocumentParams) -> Result<()> {
-    use lsp_types::notification::Notification;
-    eprintln!(
-        "Received {}: {:?}",
-        lsp_types::notification::DidOpenTextDocument::METHOD,
-        _params.text_document
-    );
-    Ok(())
+fn did_open_text_document(
+    writer: &mut impl Write,
+    ctx: &mut ServerContext,
+    params: lsp_types::DidOpenTextDocumentParams,
+) -> Result<()> {
+    let uri = params.text_document.uri.clone();
+    _check_syntax(writer, ctx, uri, &params.text_document.text)
 }
 
-fn did_change_text_document(_params: lsp_types::DidChangeTextDocumentParams) -> Result<()> {
-    use lsp_types::notification::Notification;
-    eprintln!(
-        "Received {}: {:?}",
-        lsp_types::notification::DidChangeTextDocument::METHOD,
-        _params.text_document
-    );
-    Ok(())
+fn did_change_text_document(
+    writer: &mut impl Write,
+    ctx: &mut ServerContext,
+    params: lsp_types::DidChangeTextDocumentParams,
+) -> Result<()> {
+    let uri = params.text_document.uri.clone();
+    let content = params
+        .content_changes
+        .iter()
+        .map(|i| i.text.to_owned())
+        .collect::<Vec<_>>();
+    let res = content.join("");
+    _check_syntax(writer, ctx, uri, &res)
 }
 
 // Initialization

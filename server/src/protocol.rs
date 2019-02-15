@@ -241,9 +241,17 @@ pub fn write_error_response(writer: &mut impl Write, id: u64, error: ResponseErr
     write_message(writer, message)
 }
 
-pub fn _write_notification(writer: &mut impl Write, method: &str, params: Value) -> Result<()> {
-    let message = NotificationMessage {
-        method: method.to_string(),
+#[derive(Serialize)]
+struct JsonRpcNotificationMessage<'a> {
+    jsonrpc: &'a str,
+    method: &'a str,
+    params: Value,
+}
+
+pub fn write_notification(writer: &mut impl Write, method: &str, params: Value) -> Result<()> {
+    let message = JsonRpcNotificationMessage {
+        jsonrpc: "2.0",
+        method: method,
         params: params,
     };
     write_message(writer, message)
