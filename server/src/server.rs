@@ -165,11 +165,11 @@ fn _check_syntax(
             ctx.has_error = true;
             let start = lsp_types::Position {
                 line: span.line as u64 - 1,
-                character: span.get_column() as u64,
+                character: span.get_column() as u64 - 1,
             };
             let end = lsp_types::Position {
                 line: span.line as u64 - 1,
-                character: (span.get_column() + span.fragment.len()) as u64,
+                character: (span.get_column() + span.fragment.len()) as u64 - 1,
             };
             let range = lsp_types::Range {
                 start: start,
