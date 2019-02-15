@@ -14,13 +14,11 @@ pub enum Error<'a> {
 
 pub type Result<'a, T> = std::result::Result<T, Error<'a>>;
 
+mod definition;
 mod identifier;
 mod interface;
 
-#[derive(Debug)]
-pub enum Definition<'a> {
-    Interface(interface::Interface<'a>),
-}
+use definition::Definition;
 
 #[derive(Debug)]
 pub struct Mojom<'a> {
@@ -30,19 +28,8 @@ pub struct Mojom<'a> {
 /// parses `input`.
 pub fn parse(input: &str) -> Result<Mojom> {
     let input = Span::new(input.into());
-    let parsed = interface::interface(input);
-
-    parsed
-        .map(|intr| {
-            let definitions = vec![Definition::Interface(intr.1)];
-            Mojom {
-                definitions: definitions,
-            }
-        })
-        .map_err(|err| match err {
-            nom::Err::Error(nom::Context::Code(code_span, _failed_parser)) => {
-                Error::SyntaxError(code_span)
-            }
-            _ => unimplemented!(),
-        })
+    let definitions = definition::definitions(input)?;
+    Ok(Mojom {
+        definitions: definitions,
+    })
 }
