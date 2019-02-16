@@ -149,7 +149,9 @@ fn _check_syntax(
     uri: lsp_types::Url,
     input: &str,
 ) -> Result<()> {
-    match mojom_parser::parse(input) {
+    let parsed = mojom_parser::parse(input);
+    eprintln!("{:?}", parsed);
+    match parsed {
         Ok(_) => {
             if ctx.has_error {
                 ctx.has_error = false;
