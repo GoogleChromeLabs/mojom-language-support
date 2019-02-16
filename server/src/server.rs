@@ -149,29 +149,42 @@ fn _check_syntax(
     uri: lsp_types::Url,
     input: &str,
 ) -> Result<()> {
-    let parsed = mojom_parser::parse(input);
-    eprintln!("{:?}", parsed);
-    match parsed {
+    match mojom_parser::parse(input) {
         Ok(_) => {
-            if ctx.has_error {
-                ctx.has_error = false;
-                let params = lsp_types::PublishDiagnosticsParams {
-                    uri: uri,
-                    diagnostics: vec![],
-                };
-                publish_diagnotics(writer, params)?;
-            }
-            Ok(())
-        }
-        Err(mojom_parser::Error::SyntaxError(span)) => {
-            ctx.has_error = true;
-            let start = lsp_types::Position {
-                line: span.line as u64 - 1,
-                character: span.get_column() as u64 - 1,
+            let params = lsp_types::PublishDiagnosticsParams {
+                uri: uri,
+                diagnostics: vec![],
             };
-            let end = lsp_types::Position {
-                line: span.line as u64 - 1,
-                character: (span.get_column() + span.fragment.len()) as u64 - 1,
+            publish_diagnotics(writer, params)?;
+            ctx.has_error = false;
+        }
+        Err(err) => {
+            // Convert error location.
+            let (start, end) = match err.line_col {
+                mojom_parser::LineColLocation::Pos((line, col)) => {
+                    let start = lsp_types::Position {
+                        line: line as u64 - 1,
+                        character: col as u64 - 1,
+                    };
+                    // ???
+                    let end = lsp_types::Position {
+                        line: line as u64 - 1,
+                        character: col as u64 - 1,
+                    };
+                    (start, end)
+                }
+                mojom_parser::LineColLocation::Span(start, end) => {
+                    // `start` and `end` are tuples like (line, col).
+                    let start = lsp_types::Position {
+                        line: start.0 as u64 - 1,
+                        character: start.1 as u64 - 1,
+                    };
+                    let end = lsp_types::Position {
+                        line: end.0 as u64 - 1,
+                        character: end.1 as u64 - 1,
+                    };
+                    (start, end)
+                }
             };
             let range = lsp_types::Range {
                 start: start,
@@ -189,9 +202,11 @@ fn _check_syntax(
                 uri: uri,
                 diagnostics: vec![diagostic],
             };
-            publish_diagnotics(writer, params)
+            publish_diagnotics(writer, params)?;
+            ctx.has_error = true;
         }
     }
+    Ok(())
 }
 
 fn exit_notification(ctx: &mut ServerContext) -> Result<()> {

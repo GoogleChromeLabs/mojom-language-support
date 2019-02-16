@@ -1,0 +1,11 @@
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+
+char = { ASCII_ALPHA | "_" }
+
+identifier = @{ char ~ (char | ASCII_DIGIT)* }
+
+interface = { "interface" ~ identifier ~ "{" ~ "}" ~ ";" }
+
+mojom_file = {
+  SOI ~ (interface)* ~ EOI
+}

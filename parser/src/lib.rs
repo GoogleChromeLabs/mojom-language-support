@@ -1,35 +1,11 @@
 #[macro_use]
-extern crate nom;
-#[macro_use]
-extern crate nom_locate;
+extern crate pest_derive;
 
-use nom::types::CompleteStr;
+pub use pest::error::Error;
+pub use pest::error::LineColLocation;
 
-/// Span represents a slice of input &str along with its position.
-pub type Span<'a> = nom_locate::LocatedSpan<CompleteStr<'a>>;
+pub use pest::Span;
 
-#[derive(Debug)]
-pub enum Error<'a> {
-    SyntaxError(Span<'a>),
-}
-
-pub type Result<'a, T> = std::result::Result<T, Error<'a>>;
-
-mod definition;
-mod identifier;
-mod interface;
 mod mojom;
 
-use mojom::{mojom_file, Mojom};
-
-/// parses `input`.
-pub fn parse(input: &str) -> Result<Mojom> {
-    let input = Span::new(input.into());
-    let (_next, ast) = mojom_file(input).map_err(|err| match err {
-        nom::Err::Error(nom::Context::Code(code_span, _failed_parser)) => {
-            Error::SyntaxError(code_span)
-        }
-        _ => unimplemented!(),
-    })?;
-    Ok(ast)
-}
+pub use mojom::*;

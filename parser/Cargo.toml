@@ -5,5 +5,5 @@ authors = ["The Chromium Authors"]
 edition = "2018"
 
 [dependencies]
-nom = "4.0"
-nom_locate = "0.3"
+pest = "2.0"
+pest_derive = "2.0"
