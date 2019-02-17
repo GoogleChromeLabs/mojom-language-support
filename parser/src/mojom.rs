@@ -25,18 +25,16 @@ pub struct Const<'a> {
     pub value: Span<'a>,
 }
 
-impl<'a> From<Pairs<'a>> for Const<'a> {
-    fn from(mut pairs: Pairs<'a>) -> Self {
-        _skip_attribute_list(&mut pairs);
-        let pair = pairs.next().unwrap();
-        let typ = pair.as_span();
-        let name = pairs.next().unwrap().as_span();
-        let value = pairs.next().unwrap().as_span();
-        Const {
-            typ: typ,
-            name: name,
-            value: value,
-        }
+fn into_const<'a>(mut pairs: Pairs<'a>) -> Const<'a> {
+    _skip_attribute_list(&mut pairs);
+    let pair = pairs.next().unwrap();
+    let typ = pair.as_span();
+    let name = pairs.next().unwrap().as_span();
+    let value = pairs.next().unwrap().as_span();
+    Const {
+        typ: typ,
+        name: name,
+        value: value,
     }
 }
 
@@ -46,15 +44,13 @@ pub struct EnumValue<'a> {
     pub value: Option<Span<'a>>,
 }
 
-impl<'a> From<Pairs<'a>> for EnumValue<'a> {
-    fn from(mut pairs: Pairs<'a>) -> Self {
-        _skip_attribute_list(&mut pairs);
-        let name = pairs.next().unwrap().as_span();
-        let value = pairs.next().map(|value| value.as_span());
-        EnumValue {
-            name: name,
-            value: value,
-        }
+fn into_enum_value<'a>(mut pairs: Pairs<'a>) -> EnumValue<'a> {
+    _skip_attribute_list(&mut pairs);
+    let name = pairs.next().unwrap().as_span();
+    let value = pairs.next().map(|value| value.as_span());
+    EnumValue {
+        name: name,
+        value: value,
     }
 }
 
@@ -64,18 +60,16 @@ pub struct Enum<'a> {
     pub values: Vec<EnumValue<'a>>,
 }
 
-impl<'a> From<Pairs<'a>> for Enum<'a> {
-    fn from(mut pairs: Pairs<'a>) -> Self {
-        _skip_attribute_list(&mut pairs);
-        let name = pairs.next().unwrap().as_span();
-        let mut values = Vec::new();
-        for item in pairs {
-            values.push(EnumValue::from(item.into_inner()));
-        }
-        Enum {
-            name: name,
-            values: values,
-        }
+fn into_enum<'a>(mut pairs: Pairs<'a>) -> Enum<'a> {
+    _skip_attribute_list(&mut pairs);
+    let name = pairs.next().unwrap().as_span();
+    let mut values = Vec::new();
+    for item in pairs {
+        values.push(into_enum_value(item.into_inner()));
+    }
+    Enum {
+        name: name,
+        values: values,
     }
 }
 
@@ -87,7 +81,7 @@ pub struct StructField<'a> {
     default: Option<Span<'a>>,
 }
 
-fn _conv_struct_field<'a>(mut pairs: Pairs<'a>) -> StructField<'a> {
+fn into_struct_field<'a>(mut pairs: Pairs<'a>) -> StructField<'a> {
     _skip_attribute_list(&mut pairs);
     let typ = pairs.next().unwrap().as_span();
     let name = pairs.next().unwrap().as_span();
@@ -120,16 +114,16 @@ pub struct Struct<'a> {
     pub body: Vec<StructBody<'a>>,
 }
 
-fn _conv_struct<'a>(mut pairs: Pairs<'a>) -> Struct<'a> {
+fn into_struct<'a>(mut pairs: Pairs<'a>) -> Struct<'a> {
     _skip_attribute_list(&mut pairs);
     let name = pairs.next().unwrap().as_span();
     let mut body = Vec::new();
     for inner in pairs.next().unwrap().into_inner() {
         let item = inner.into_inner().next().unwrap();
         let item = match item.as_rule() {
-            Rule::const_stmt => StructBody::Const(Const::from(item.into_inner())),
-            Rule::enum_stmt => StructBody::Enum(Enum::from(item.into_inner())),
-            Rule::struct_field => StructBody::Field(_conv_struct_field(item.into_inner())),
+            Rule::const_stmt => StructBody::Const(into_const(item.into_inner())),
+            Rule::enum_stmt => StructBody::Enum(into_enum(item.into_inner())),
+            Rule::struct_field => StructBody::Field(into_struct_field(item.into_inner())),
             _ => {
                 println!("{:?}", item);
                 unreachable!()
@@ -150,22 +144,20 @@ pub struct Parameter<'a> {
     pub ordinal: Option<Span<'a>>,
 }
 
-impl<'a> From<Pairs<'a>> for Parameter<'a> {
-    fn from(mut pairs: Pairs<'a>) -> Self {
-        let typ = pairs.next().unwrap().as_span();
-        let name = pairs.next().unwrap().as_span();
-        let ordinal = pairs.next().map(|ord| ord.as_span());
-        Parameter {
-            typ: typ,
-            name: name,
-            ordinal: ordinal,
-        }
+fn into_parameter<'a>(mut pairs: Pairs<'a>) -> Parameter<'a> {
+    let typ = pairs.next().unwrap().as_span();
+    let name = pairs.next().unwrap().as_span();
+    let ordinal = pairs.next().map(|ord| ord.as_span());
+    Parameter {
+        typ: typ,
+        name: name,
+        ordinal: ordinal,
     }
 }
 
 fn _parameter_list<'a>(pairs: Pairs<'a>) -> Vec<Parameter<'a>> {
     pairs
-        .map(|param| Parameter::from(param.into_inner()))
+        .map(|param| into_parameter(param.into_inner()))
         .collect::<Vec<_>>()
 }
 
@@ -174,11 +166,9 @@ pub struct Response<'a> {
     pub params: Vec<Parameter<'a>>,
 }
 
-impl<'a> From<Pairs<'a>> for Response<'a> {
-    fn from(mut pairs: Pairs<'a>) -> Self {
-        let params = _parameter_list(pairs.next().unwrap().into_inner());
-        Response { params: params }
-    }
+fn into_response<'a>(mut pairs: Pairs<'a>) -> Response<'a> {
+    let params = _parameter_list(pairs.next().unwrap().into_inner());
+    Response { params: params }
 }
 
 #[derive(Debug)]
@@ -189,22 +179,20 @@ pub struct Method<'a> {
     pub response: Option<Response<'a>>,
 }
 
-impl<'a> From<Pairs<'a>> for Method<'a> {
-    fn from(mut pairs: Pairs<'a>) -> Self {
-        _skip_attribute_list(&mut pairs);
-        let name = pairs.next().unwrap().as_span();
-        let ordinal = match pairs.peek().unwrap().as_rule() {
-            Rule::ordinal_value => pairs.next().map(|ord| ord.as_span()),
-            _ => None,
-        };
-        let params = _parameter_list(pairs.next().unwrap().into_inner());
-        let response = pairs.next().map(|res| Response::from(res.into_inner()));
-        Method {
-            name: name,
-            ordinal: ordinal,
-            params: params,
-            response: response,
-        }
+fn into_method<'a>(mut pairs: Pairs<'a>) -> Method<'a> {
+    _skip_attribute_list(&mut pairs);
+    let name = pairs.next().unwrap().as_span();
+    let ordinal = match pairs.peek().unwrap().as_rule() {
+        Rule::ordinal_value => pairs.next().map(|ord| ord.as_span()),
+        _ => None,
+    };
+    let params = _parameter_list(pairs.next().unwrap().into_inner());
+    let response = pairs.next().map(|res| into_response(res.into_inner()));
+    Method {
+        name: name,
+        ordinal: ordinal,
+        params: params,
+        response: response,
     }
 }
 
@@ -224,7 +212,7 @@ pub struct Mojom<'a> {
     pub definitions: Vec<Definition<'a>>,
 }
 
-fn conv_interface<'a>(mut intr: Pairs<'a>) -> Interface<'a> {
+fn into_interface<'a>(mut intr: Pairs<'a>) -> Interface<'a> {
     _skip_attribute_list(&mut intr);
     let pair = intr.next().unwrap();
     let name = pair.as_span();
@@ -244,7 +232,7 @@ pub fn parse(input: &str) -> Result<Mojom, Error<Rule>> {
     for stmt in parsed {
         match stmt.as_rule() {
             Rule::interface => {
-                let intr = conv_interface(stmt.into_inner());
+                let intr = into_interface(stmt.into_inner());
                 definitions.push(Definition::Interface(intr));
             }
             Rule::EOI => break,
@@ -377,7 +365,7 @@ mod tests {
             .unwrap()
             .next()
             .unwrap();
-        let stmt = Const::from(parsed.into_inner());
+        let stmt = into_const(parsed.into_inner());
         assert_eq!("uint32", stmt.typ.as_str());
         assert_eq!("kTheAnswer", stmt.name.as_str());
         assert_eq!("42", stmt.value.as_str());
@@ -390,7 +378,7 @@ mod tests {
             .unwrap()
             .next()
             .unwrap();
-        let stmt = Enum::from(parsed.into_inner());
+        let stmt = into_enum(parsed.into_inner());
         assert_eq!("MyEnum", stmt.name.as_str());
         let values = &stmt.values;
         assert_eq!(3, values.len());
@@ -408,7 +396,7 @@ mod tests {
             .unwrap()
             .next()
             .unwrap();
-        let stmt = Method::from(parsed.into_inner());
+        let stmt = into_method(parsed.into_inner());
         assert_eq!("MyMethod", stmt.name.as_str());
         let params = &stmt.params;
         assert_eq!(2, params.len());
@@ -426,7 +414,7 @@ mod tests {
             .unwrap()
             .next()
             .unwrap();
-        let stmt = Method::from(parsed.into_inner());
+        let stmt = into_method(parsed.into_inner());
         assert_eq!("MyMethod2", stmt.name.as_str());
         assert_eq!(0, stmt.params.len());
         assert!(stmt.response.is_none());
@@ -443,7 +431,7 @@ mod tests {
             .unwrap()
             .next()
             .unwrap();
-        let stmt = _conv_struct(parsed.into_inner());
+        let stmt = into_struct(parsed.into_inner());
         assert_eq!("MyStruct", stmt.name.as_str());
         let body = &stmt.body;
         assert_eq!(3, body.len());
