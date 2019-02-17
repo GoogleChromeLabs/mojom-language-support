@@ -124,10 +124,7 @@ fn into_struct<'a>(mut pairs: Pairs<'a>) -> Struct<'a> {
             Rule::const_stmt => StructBody::Const(into_const(item.into_inner())),
             Rule::enum_stmt => StructBody::Enum(into_enum(item.into_inner())),
             Rule::struct_field => StructBody::Field(into_struct_field(item.into_inner())),
-            _ => {
-                println!("{:?}", item);
-                unreachable!()
-            }
+            _ => unreachable!(),
         };
         body.push(item);
     }
@@ -197,26 +194,48 @@ fn into_method<'a>(mut pairs: Pairs<'a>) -> Method<'a> {
 }
 
 #[derive(Debug)]
+pub enum InterfaceMember<'a> {
+    Const(Const<'a>),
+    Enum(Enum<'a>),
+    Method(Method<'a>),
+}
+
+#[derive(Debug)]
 pub struct Interface<'a> {
     pub name: Span<'a>,
+    pub members: Vec<InterfaceMember<'a>>,
+}
+
+fn into_interface<'a>(mut pairs: Pairs<'a>) -> Interface<'a> {
+    _skip_attribute_list(&mut pairs);
+    let name = pairs.next().unwrap().as_span();
+    let mut members = Vec::new();
+    for member in pairs {
+        let member = member.into_inner().next().unwrap();
+        let member = match member.as_rule() {
+            Rule::const_stmt => InterfaceMember::Const(into_const(member.into_inner())),
+            Rule::enum_stmt => InterfaceMember::Enum(into_enum(member.into_inner())),
+            Rule::method_stmt => InterfaceMember::Method(into_method(member.into_inner())),
+            _ => unreachable!(),
+        };
+        members.push(member);
+    }
+    Interface {
+        name: name,
+        members: members,
+    }
 }
 
 #[derive(Debug)]
 pub enum Definition<'a> {
     Interface(Interface<'a>),
+    Struct(Struct<'a>),
     _Dummy, // Just for enforcing multiple match arms
 }
 
 #[derive(Debug)]
 pub struct Mojom<'a> {
     pub definitions: Vec<Definition<'a>>,
-}
-
-fn into_interface<'a>(mut intr: Pairs<'a>) -> Interface<'a> {
-    _skip_attribute_list(&mut intr);
-    let pair = intr.next().unwrap();
-    let name = pair.as_span();
-    Interface { name: name }
 }
 
 /// Parses `input`.
@@ -234,6 +253,10 @@ pub fn parse(input: &str) -> Result<Mojom, Error<Rule>> {
             Rule::interface => {
                 let intr = into_interface(stmt.into_inner());
                 definitions.push(Definition::Interface(intr));
+            }
+            Rule::struct_stmt => {
+                let st = into_struct(stmt.into_inner());
+                definitions.push(Definition::Struct(st));
             }
             Rule::EOI => break,
             _ => unreachable!(),
@@ -453,5 +476,33 @@ mod tests {
             _ => unreachable!(),
         };
         assert_eq!("my_interface", item.name.as_str());
+    }
+
+    #[test]
+    fn test_interface() {
+        let input = "interface MyInterface {
+            MyMethod();
+            enum MyEnum { kMyEnumVal1, kMyEnumVal2 };
+        };";
+        let parsed = MojomParser::parse(Rule::interface, &input)
+            .unwrap()
+            .next()
+            .unwrap();
+        let intr = into_interface(parsed.into_inner());
+        assert_eq!("MyInterface", intr.name.as_str());
+        let members = &intr.members;
+        assert_eq!(2, members.len());
+
+        let member = match &members[0] {
+            InterfaceMember::Method(member) => member,
+            _ => unreachable!(),
+        };
+        assert_eq!("MyMethod", member.name.as_str());
+
+        let member = match &members[1] {
+            InterfaceMember::Enum(member) => member,
+            _ => unreachable!(),
+        };
+        assert_eq!("MyEnum", member.name.as_str());
     }
 }
