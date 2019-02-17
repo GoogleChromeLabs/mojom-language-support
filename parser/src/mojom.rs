@@ -80,6 +80,71 @@ impl<'a> From<Pairs<'a>> for Enum<'a> {
 }
 
 #[derive(Debug)]
+pub struct Parameter<'a> {
+    pub typ: Span<'a>,
+    pub name: Span<'a>,
+    pub ordinal: Option<Span<'a>>,
+}
+
+impl<'a> From<Pairs<'a>> for Parameter<'a> {
+    fn from(mut pairs: Pairs<'a>) -> Self {
+        let typ = pairs.next().unwrap().as_span();
+        let name = pairs.next().unwrap().as_span();
+        let ordinal = pairs.next().map(|ord| ord.as_span());
+        Parameter {
+            typ: typ,
+            name: name,
+            ordinal: ordinal,
+        }
+    }
+}
+
+fn _parameter_list<'a>(pairs: Pairs<'a>) -> Vec<Parameter<'a>> {
+    pairs
+        .map(|param| Parameter::from(param.into_inner()))
+        .collect::<Vec<_>>()
+}
+
+#[derive(Debug)]
+pub struct Response<'a> {
+    pub params: Vec<Parameter<'a>>,
+}
+
+impl<'a> From<Pairs<'a>> for Response<'a> {
+    fn from(mut pairs: Pairs<'a>) -> Self {
+        let params = _parameter_list(pairs.next().unwrap().into_inner());
+        Response { params: params }
+    }
+}
+
+#[derive(Debug)]
+pub struct Method<'a> {
+    pub name: Span<'a>,
+    pub ordinal: Option<Span<'a>>,
+    pub params: Vec<Parameter<'a>>,
+    pub response: Option<Response<'a>>,
+}
+
+impl<'a> From<Pairs<'a>> for Method<'a> {
+    fn from(mut pairs: Pairs<'a>) -> Self {
+        _skip_attribute_list(&mut pairs);
+        let name = pairs.next().unwrap().as_span();
+        let ordinal = match pairs.peek().unwrap().as_rule() {
+            Rule::ordinal_value => pairs.next().map(|ord| ord.as_span()),
+            _ => None,
+        };
+        let params = _parameter_list(pairs.next().unwrap().into_inner());
+        let response = pairs.next().map(|res| Response::from(res.into_inner()));
+        Method {
+            name: name,
+            ordinal: ordinal,
+            params: params,
+            response: response,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Interface<'a> {
     pub name: Span<'a>,
 }
@@ -145,7 +210,10 @@ mod tests {
 
         interface InterfaceD {
             const string kMessage = \"message\";
-            enum EnumD { Foo, Bar, Baz, };
+            enum SomeEnum { Foo, Bar, Baz, };
+            MethodA(string message) => ();
+            MethodB() => (int32 result);
+            [Attr2] MethodC(associated InterfaceA assoc) => (map<string, int8> result);
         };
         ";
         let res = parse(input).unwrap();
@@ -267,5 +335,36 @@ mod tests {
         assert_eq!("2", values[1].value.as_ref().unwrap().as_str());
         assert_eq!("kThree", values[2].name.as_str());
         assert_eq!("IdentValue", values[2].value.as_ref().unwrap().as_str());
+    }
+
+    #[test]
+    fn test_method_stmt() {
+        let input = "MyMethod(string str_arg, int8 int8_arg) => (uint32 result);";
+        let parsed = MojomParser::parse(Rule::method_stmt, &input)
+            .unwrap()
+            .next()
+            .unwrap();
+        let stmt = Method::from(parsed.into_inner());
+        assert_eq!("MyMethod", stmt.name.as_str());
+        let params = &stmt.params;
+        assert_eq!(2, params.len());
+        assert_eq!("string", params[0].typ.as_str());
+        assert_eq!("str_arg", params[0].name.as_str());
+        assert_eq!("int8", params[1].typ.as_str());
+        assert_eq!("int8_arg", params[1].name.as_str());
+        let response = stmt.response.as_ref().unwrap();
+        assert_eq!(1, response.params.len());
+        assert_eq!("uint32", response.params[0].typ.as_str());
+        assert_eq!("result", response.params[0].name.as_str());
+
+        let input = "MyMethod2();";
+        let parsed = MojomParser::parse(Rule::method_stmt, &input)
+            .unwrap()
+            .next()
+            .unwrap();
+        let stmt = Method::from(parsed.into_inner());
+        assert_eq!("MyMethod2", stmt.name.as_str());
+        assert_eq!(0, stmt.params.len());
+        assert!(stmt.response.is_none());
     }
 }

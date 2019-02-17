@@ -18,7 +18,7 @@ interface = {
   attribute_section? ~ "interface" ~ name ~ "{" ~ interface_body* ~ "}" ~ ";"
 }
 interface_body = {
-  const_stmt | enum_stmt
+  const_stmt | enum_stmt | method_stmt
 }
 
 identifier = @{ name ~ "." ~ identifier | name }
@@ -64,6 +64,21 @@ enum_value = {
   attribute_section? ~ name
 }
 
+method_stmt = {
+  attribute_section? ~
+  name ~
+  ordinal_value? ~
+  parameter_list ~
+  response? ~
+  ";"
+}
+parameter_list = {
+  "(" ~ ")" |
+  "(" ~ parameter ~ ("," ~ parameter)* ~ ")"
+}
+parameter = { attribute_section? ~ type_spec ~ name ~ ordinal_value? }
+response = { "=>" ~ parameter_list }
+
 // TODO: Support float
 literal = { integer | "true" | "false" | "default" | string_literal }
 
@@ -71,6 +86,7 @@ integer = @{ int_const | "+" ~ int_const | "-" ~ int_const }
 int_const = @{ int_const_hex | int_const_dec }
 int_const_dec = @{ "0" | (ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
 int_const_hex = @{ "0" ~ ("x" | "X") ~ ASCII_HEX_DIGIT+ }
+ordinal_value = @{ "@" ~ int_const_dec }
 
 string_literal = ${ "\"" ~ string_inner ~ "\"" }
 string_inner = @{ string_char* }
