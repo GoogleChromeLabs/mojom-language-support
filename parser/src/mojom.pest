@@ -14,6 +14,16 @@ attribute_section = {
 }
 attribute = { name ~ "=" ~ name | name ~ "=" ~ literal | name }
 
+struct_stmt = { attribute_section? ~ "struct" ~ name ~ struct_body? ~ ";" }
+struct_body = { "{" ~ struct_item* ~ "}" }
+struct_item = {
+  const_stmt |
+  enum_stmt |
+  struct_field
+}
+struct_field = { attribute_section? ~ type_spec ~ name ~ ordinal_value? ~ default? ~ ";" }
+default = { "=" ~ constant }
+
 interface = {
   attribute_section? ~ "interface" ~ name ~ "{" ~ interface_body* ~ "}" ~ ";"
 }

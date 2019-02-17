@@ -80,6 +80,70 @@ impl<'a> From<Pairs<'a>> for Enum<'a> {
 }
 
 #[derive(Debug)]
+pub struct StructField<'a> {
+    typ: Span<'a>,
+    name: Span<'a>,
+    ordinal: Option<Span<'a>>,
+    default: Option<Span<'a>>,
+}
+
+fn _conv_struct_field<'a>(mut pairs: Pairs<'a>) -> StructField<'a> {
+    _skip_attribute_list(&mut pairs);
+    let typ = pairs.next().unwrap().as_span();
+    let name = pairs.next().unwrap().as_span();
+    let mut res = StructField {
+        typ: typ,
+        name: name,
+        ordinal: None,
+        default: None,
+    };
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::ordinal_value => res.ordinal = Some(pair.as_span()),
+            Rule::default => res.default = Some(pair.as_span()),
+            _ => unreachable!(),
+        }
+    }
+    res
+}
+
+#[derive(Debug)]
+pub enum StructBody<'a> {
+    Const(Const<'a>),
+    Enum(Enum<'a>),
+    Field(StructField<'a>),
+}
+
+#[derive(Debug)]
+pub struct Struct<'a> {
+    pub name: Span<'a>,
+    pub body: Vec<StructBody<'a>>,
+}
+
+fn _conv_struct<'a>(mut pairs: Pairs<'a>) -> Struct<'a> {
+    _skip_attribute_list(&mut pairs);
+    let name = pairs.next().unwrap().as_span();
+    let mut body = Vec::new();
+    for inner in pairs.next().unwrap().into_inner() {
+        let item = inner.into_inner().next().unwrap();
+        let item = match item.as_rule() {
+            Rule::const_stmt => StructBody::Const(Const::from(item.into_inner())),
+            Rule::enum_stmt => StructBody::Enum(Enum::from(item.into_inner())),
+            Rule::struct_field => StructBody::Field(_conv_struct_field(item.into_inner())),
+            _ => {
+                println!("{:?}", item);
+                unreachable!()
+            }
+        };
+        body.push(item);
+    }
+    Struct {
+        name: name,
+        body: body,
+    }
+}
+
+#[derive(Debug)]
 pub struct Parameter<'a> {
     pub typ: Span<'a>,
     pub name: Span<'a>,
@@ -366,5 +430,40 @@ mod tests {
         assert_eq!("MyMethod2", stmt.name.as_str());
         assert_eq!(0, stmt.params.len());
         assert!(stmt.response.is_none());
+    }
+
+    #[test]
+    fn test_struct_stmt() {
+        let input = "struct MyStruct {
+            const int64 kInvalidId = -1;
+            int64 my_id;
+            MyInterface? my_interface;
+        };";
+        let parsed = MojomParser::parse(Rule::struct_stmt, &input)
+            .unwrap()
+            .next()
+            .unwrap();
+        let stmt = _conv_struct(parsed.into_inner());
+        assert_eq!("MyStruct", stmt.name.as_str());
+        let body = &stmt.body;
+        assert_eq!(3, body.len());
+
+        let item = match &body[0] {
+            StructBody::Const(item) => item,
+            _ => unreachable!(),
+        };
+        assert_eq!("kInvalidId", item.name.as_str());
+
+        let item = match &body[1] {
+            StructBody::Field(item) => item,
+            _ => unreachable!(),
+        };
+        assert_eq!("my_id", item.name.as_str());
+
+        let item = match &body[2] {
+            StructBody::Field(item) => item,
+            _ => unreachable!(),
+        };
+        assert_eq!("my_interface", item.name.as_str());
     }
 }
