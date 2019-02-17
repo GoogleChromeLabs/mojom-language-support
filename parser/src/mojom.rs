@@ -134,4 +134,36 @@ mod tests {
             parse_part(Rule::attribute_section, "[Attr1, Attr2=NameVal, Attr3=123]")
         );
     }
+
+    #[test]
+    fn test_types() {
+        macro_rules! parse_type {
+            ($tok:expr) => {{
+                assert_eq!($tok, parse_part(Rule::type_spec, $tok));
+            }};
+        }
+
+        parse_type!("bool");
+        parse_type!("int8");
+        parse_type!("uint8");
+        parse_type!("int16");
+        parse_type!("uint16");
+        parse_type!("int32");
+        parse_type!("uint32");
+        parse_type!("int64");
+        parse_type!("uint64");
+        parse_type!("float");
+        parse_type!("double");
+        parse_type!("handle");
+        parse_type!("handle<message_pipe>");
+        parse_type!("string");
+        parse_type!("array<uint8>");
+        parse_type!("array<uint8, 16>");
+        parse_type!("map<int32, MyInterface>");
+        parse_type!("MyInterface");
+        parse_type!("MyInerface&");
+        parse_type!("associated MyInterface");
+        parse_type!("associated MyInterface&");
+        parse_type!("bool?");
+    }
 }

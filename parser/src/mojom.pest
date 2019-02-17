@@ -16,7 +16,29 @@ attribute = { name ~ "=" ~ name | name ~ "=" ~ literal | name }
 
 interface = { attribute_section? ~ "interface" ~ name ~ "{" ~ "}" ~ ";" }
 
-// identifier = { name ~ "." ~ identifier | name }
+identifier = { name ~ "." ~ identifier | name }
+
+type_spec = { type_name ~ "?"? }
+type_name = { fixed_array | array | map | interface_request | basic_type_name }
+basic_type_name = {
+  numeric_type | handle_type | "associated" ~ identifier | identifier
+}
+numeric_type = {
+  "bool" | "int8" | "uint8" | "int16" | "uint16" | "int32" | "uint32" |
+  "int64" | "uint64" | "float" | "double"
+}
+handle_type = { "handle" ~ ("<" ~ specific_handle_type ~ ">")? }
+specific_handle_type = {
+  "message_pipe" | "shared_buffer" | "data_pipe_consumer" |
+  "data_pipe_producer"
+}
+array = { "array" ~ "<" ~ type_spec ~ ">" }
+fixed_array = { "array" ~ "<" ~ type_spec ~ "," ~ int_const_dec ~ ">" }
+map = { "map" ~ "<" ~ identifier ~ "," ~ type_spec ~ ">" }
+interface_request = {
+  "associated" ~ identifier ~ "&" |
+  identifier ~ "&"
+}
 
 // TODO: Support float
 literal = { integer | "true" | "false" | "default" | string_literal }
