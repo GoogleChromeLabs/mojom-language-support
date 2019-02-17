@@ -8,6 +8,16 @@ struct MojomParser;
 
 type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
 
+// Skips attribute list if exists. This is tentative.
+fn _skip_attribute_list(pairs: &mut Pairs) {
+    match pairs.peek().unwrap().as_rule() {
+        Rule::attribute_section => {
+            pairs.next();
+        }
+        _ => (),
+    }
+}
+
 #[derive(Debug)]
 pub struct Const<'a> {
     pub typ: Span<'a>,
@@ -17,12 +27,8 @@ pub struct Const<'a> {
 
 impl<'a> From<Pairs<'a>> for Const<'a> {
     fn from(mut pairs: Pairs<'a>) -> Self {
-        // Skip attribute list for now.
+        _skip_attribute_list(&mut pairs);
         let pair = pairs.next().unwrap();
-        let pair = match pair.as_rule() {
-            Rule::attribute_section => pairs.next().unwrap(),
-            _ => pair,
-        };
         let typ = pair.as_span();
         let name = pairs.next().unwrap().as_span();
         let value = pairs.next().unwrap().as_span();
@@ -30,6 +36,45 @@ impl<'a> From<Pairs<'a>> for Const<'a> {
             typ: typ,
             name: name,
             value: value,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct EnumValue<'a> {
+    pub name: Span<'a>,
+    pub value: Option<Span<'a>>,
+}
+
+impl<'a> From<Pairs<'a>> for EnumValue<'a> {
+    fn from(mut pairs: Pairs<'a>) -> Self {
+        _skip_attribute_list(&mut pairs);
+        let name = pairs.next().unwrap().as_span();
+        let value = pairs.next().map(|value| value.as_span());
+        EnumValue {
+            name: name,
+            value: value,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Enum<'a> {
+    pub name: Span<'a>,
+    pub values: Vec<EnumValue<'a>>,
+}
+
+impl<'a> From<Pairs<'a>> for Enum<'a> {
+    fn from(mut pairs: Pairs<'a>) -> Self {
+        _skip_attribute_list(&mut pairs);
+        let name = pairs.next().unwrap().as_span();
+        let mut values = Vec::new();
+        for item in pairs {
+            values.push(EnumValue::from(item.into_inner()));
+        }
+        Enum {
+            name: name,
+            values: values,
         }
     }
 }
@@ -50,16 +95,9 @@ pub struct Mojom<'a> {
     pub definitions: Vec<Definition<'a>>,
 }
 
-//use pest::iterators::Pairs;
-
 fn conv_interface<'a>(mut intr: Pairs<'a>) -> Interface<'a> {
-    // Inteface may have an attribute list. Skip them for now.
+    _skip_attribute_list(&mut intr);
     let pair = intr.next().unwrap();
-    let pair = match pair.as_rule() {
-        Rule::attribute_section => intr.next().unwrap(),
-        _ => pair,
-    };
-
     let name = pair.as_span();
     Interface { name: name }
 }
@@ -107,6 +145,7 @@ mod tests {
 
         interface InterfaceD {
             const string kMessage = \"message\";
+            enum EnumD { Foo, Bar, Baz, };
         };
         ";
         let res = parse(input).unwrap();
@@ -210,5 +249,23 @@ mod tests {
         assert_eq!("uint32", stmt.typ.as_str());
         assert_eq!("kTheAnswer", stmt.name.as_str());
         assert_eq!("42", stmt.value.as_str());
+    }
+
+    #[test]
+    fn test_enum_stmt() {
+        let input = "enum MyEnum { kOne, kTwo=2, kThree=IdentValue, };";
+        let parsed = MojomParser::parse(Rule::enum_stmt, &input)
+            .unwrap()
+            .next()
+            .unwrap();
+        let stmt = Enum::from(parsed.into_inner());
+        assert_eq!("MyEnum", stmt.name.as_str());
+        let values = &stmt.values;
+        assert_eq!(3, values.len());
+        assert_eq!("kOne", values[0].name.as_str());
+        assert_eq!("kTwo", values[1].name.as_str());
+        assert_eq!("2", values[1].value.as_ref().unwrap().as_str());
+        assert_eq!("kThree", values[2].name.as_str());
+        assert_eq!("IdentValue", values[2].value.as_ref().unwrap().as_str());
     }
 }

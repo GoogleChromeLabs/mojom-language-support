@@ -18,7 +18,7 @@ interface = {
   attribute_section? ~ "interface" ~ name ~ "{" ~ interface_body* ~ "}" ~ ";"
 }
 interface_body = {
-  const_stmt
+  const_stmt | enum_stmt
 }
 
 identifier = @{ name ~ "." ~ identifier | name }
@@ -52,6 +52,17 @@ const_stmt = {
   attribute_section? ~ "const" ~ type_spec ~ name ~ "=" ~ constant ~ ";"
 }
 constant = { (literal | identifier) }
+
+enum_stmt = {
+  attribute_section? ~ "enum" ~ name ~ "{"
+    ~ enum_value ~ ("," ~ enum_value)* ~ ","? ~
+  "}" ~ ";"
+}
+enum_value = {
+  attribute_section? ~ name ~ "=" ~ integer |
+  attribute_section? ~ name ~ "=" ~ identifier |
+  attribute_section? ~ name
+}
 
 // TODO: Support float
 literal = { integer | "true" | "false" | "default" | string_literal }
