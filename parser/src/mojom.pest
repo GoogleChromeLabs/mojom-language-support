@@ -6,9 +6,32 @@ WHITESPACE = _{ " " | "\t" | NEWLINE }
 
 char = { ASCII_ALPHA | "_" }
 
-identifier = @{ char ~ (char | ASCII_DIGIT)* }
+name = @{ char ~ (char | ASCII_DIGIT)* }
 
-interface = { "interface" ~ identifier ~ "{" ~ "}" ~ ";" }
+attribute_section = {
+  "[" ~ "]" |
+  "[" ~ attribute ~ ("," ~ attribute)* ~ "]"
+}
+attribute = { name ~ "=" ~ name | name ~ "=" ~ literal | name }
+
+interface = { attribute_section? ~ "interface" ~ name ~ "{" ~ "}" ~ ";" }
+
+// identifier = { name ~ "." ~ identifier | name }
+
+// TODO: Support float
+literal = { integer | "true" | "false" | "default" | string_literal }
+
+integer = { int_const | "+" ~ int_const | "-" ~ int_const }
+int_const = { int_const_hex | int_const_dec }
+int_const_dec = @{ "0" | (ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
+int_const_hex = @{ "0" ~ ("x" | "X") ~ ASCII_HEX_DIGIT+ }
+
+string_literal = ${ "\"" ~ string_inner ~ "\"" }
+string_inner = @{ string_char* }
+string_char = {
+  !("\"" | "\\") ~ ANY
+  | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+}
 
 mojom_file = {
   SOI ~ (interface)* ~ EOI

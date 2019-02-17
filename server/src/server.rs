@@ -143,6 +143,18 @@ fn publish_diagnotics(
     write_notification(writer, "textDocument/publishDiagnostics", params)
 }
 
+fn _dbg_print_ast(ast: &mojom_parser::Mojom) {
+    for definition in &ast.definitions {
+        match definition {
+            mojom_parser::Definition::Interface(ref intr) => {
+                let (line, col) = intr.name.start_pos().line_col();
+                eprintln!("{}:{}: name: {}", line, col, intr.name.as_str());
+            }
+            _ => (),
+        };
+    }
+}
+
 fn _check_syntax(
     writer: &mut impl Write,
     ctx: &mut ServerContext,
@@ -150,7 +162,8 @@ fn _check_syntax(
     input: &str,
 ) -> Result<()> {
     match mojom_parser::parse(input) {
-        Ok(_) => {
+        Ok(ast) => {
+            _dbg_print_ast(&ast);
             let params = lsp_types::PublishDiagnosticsParams {
                 uri: uri,
                 diagnostics: vec![],
