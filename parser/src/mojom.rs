@@ -6,6 +6,34 @@ use crate::{Error, Span};
 #[grammar = "mojom.pest"]
 struct MojomParser;
 
+type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
+
+#[derive(Debug)]
+pub struct Const<'a> {
+    pub typ: Span<'a>,
+    pub name: Span<'a>,
+    pub value: Span<'a>,
+}
+
+impl<'a> From<Pairs<'a>> for Const<'a> {
+    fn from(mut pairs: Pairs<'a>) -> Self {
+        // Skip attribute list for now.
+        let pair = pairs.next().unwrap();
+        let pair = match pair.as_rule() {
+            Rule::attribute_section => pairs.next().unwrap(),
+            _ => pair,
+        };
+        let typ = pair.as_span();
+        let name = pairs.next().unwrap().as_span();
+        let value = pairs.next().unwrap().as_span();
+        Const {
+            typ: typ,
+            name: name,
+            value: value,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Interface<'a> {
     pub name: Span<'a>,
@@ -22,9 +50,9 @@ pub struct Mojom<'a> {
     pub definitions: Vec<Definition<'a>>,
 }
 
-use pest::iterators::Pairs;
+//use pest::iterators::Pairs;
 
-fn conv_interface<'a>(mut intr: Pairs<'a, Rule>) -> Interface<'a> {
+fn conv_interface<'a>(mut intr: Pairs<'a>) -> Interface<'a> {
     // Inteface may have an attribute list. Skip them for now.
     let pair = intr.next().unwrap();
     let pair = match pair.as_rule() {
@@ -76,9 +104,13 @@ mod tests {
 
         [Attr]
         interface InterfaceC {};
+
+        interface InterfaceD {
+            const string kMessage = \"message\";
+        };
         ";
         let res = parse(input).unwrap();
-        assert_eq!(3, res.definitions.len());
+        assert_eq!(4, res.definitions.len());
     }
 
     #[test]
@@ -165,5 +197,18 @@ mod tests {
         parse_type!("associated MyInterface");
         parse_type!("associated MyInterface&");
         parse_type!("bool?");
+    }
+
+    #[test]
+    fn test_const_stmt() {
+        let input = "const uint32 kTheAnswer = 42;";
+        let parsed = MojomParser::parse(Rule::const_stmt, &input)
+            .unwrap()
+            .next()
+            .unwrap();
+        let stmt = Const::from(parsed.into_inner());
+        assert_eq!("uint32", stmt.typ.as_str());
+        assert_eq!("kTheAnswer", stmt.name.as_str());
+        assert_eq!("42", stmt.value.as_str());
     }
 }

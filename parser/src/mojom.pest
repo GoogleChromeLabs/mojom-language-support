@@ -14,11 +14,19 @@ attribute_section = {
 }
 attribute = { name ~ "=" ~ name | name ~ "=" ~ literal | name }
 
-interface = { attribute_section? ~ "interface" ~ name ~ "{" ~ "}" ~ ";" }
+interface = {
+  attribute_section? ~ "interface" ~ name ~ "{" ~ interface_body* ~ "}" ~ ";"
+}
+interface_body = {
+  const_stmt
+}
 
-identifier = { name ~ "." ~ identifier | name }
+identifier = @{ name ~ "." ~ identifier | name }
 
-type_spec = { type_name ~ "?"? }
+type_spec = {
+  type_name ~ "?" |
+  type_name
+}
 type_name = { fixed_array | array | map | interface_request | basic_type_name }
 basic_type_name = {
   numeric_type | handle_type | "associated" ~ identifier | identifier
@@ -40,11 +48,16 @@ interface_request = {
   identifier ~ "&"
 }
 
+const_stmt = {
+  attribute_section? ~ "const" ~ type_spec ~ name ~ "=" ~ constant ~ ";"
+}
+constant = { (literal | identifier) }
+
 // TODO: Support float
 literal = { integer | "true" | "false" | "default" | string_literal }
 
-integer = { int_const | "+" ~ int_const | "-" ~ int_const }
-int_const = { int_const_hex | int_const_dec }
+integer = @{ int_const | "+" ~ int_const | "-" ~ int_const }
+int_const = @{ int_const_hex | int_const_dec }
 int_const_dec = @{ "0" | (ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
 int_const_hex = @{ "0" ~ ("x" | "X") ~ ASCII_HEX_DIGIT+ }
 
