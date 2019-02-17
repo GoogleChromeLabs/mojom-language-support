@@ -1,3 +1,7 @@
+line_comment = { "//" ~ (!NEWLINE ~ ANY)* }
+block_comment = { "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+COMMENT = _{ line_comment | block_comment }
+
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 
 char = { ASCII_ALPHA | "_" }

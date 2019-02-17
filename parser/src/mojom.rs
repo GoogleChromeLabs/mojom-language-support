@@ -63,10 +63,22 @@ mod tests {
     fn test_mojom_file() {
         let input = "\n
         interface InterfaceA {};
-        
+
+        // This is comment.
         interface InterfaceB {};
         ";
         let res = parse(input).unwrap();
         assert_eq!(2, res.definitions.len());
+    }
+
+    #[test]
+    fn test_comment() {
+        let input = "/* block comment */";
+        let parsed = MojomParser::parse(Rule::mojom_file, &input);
+        assert!(parsed.is_ok());
+
+        let input = "// line comment";
+        let parsed = MojomParser::parse(Rule::mojom_file, &input);
+        assert!(parsed.is_ok());
     }
 }
