@@ -407,6 +407,17 @@ mod tests {
     }
 
     #[test]
+    fn test_float() {
+        assert_eq!("0.0", parse_part(Rule::float, "0.0"));
+        assert_eq!("3.141", parse_part(Rule::float, "3.141"));
+        assert_eq!("+0.123", parse_part(Rule::float, "+0.123"));
+        assert_eq!("-5.67", parse_part(Rule::float, "-5.67"));
+        assert_eq!("4e5", parse_part(Rule::float, "4e5"));
+        assert_eq!("-7e+15", parse_part(Rule::float, "-7e+15"));
+        assert_eq!("+9e-2", parse_part(Rule::float, "+9e-2"));
+    }
+
+    #[test]
     fn test_string_literal() {
         assert_eq!(r#""hello""#, parse_part(Rule::string_literal, r#""hello""#));
         assert_eq!(

@@ -110,14 +110,22 @@ response = { "=>" ~ parameter_list }
 char = { ASCII_ALPHA | "_" }
 name = @{ char ~ (char | ASCII_DIGIT)* }
 
-// TODO: Support float
-literal = { integer | "true" | "false" | "default" | string_literal }
+literal = { integer | float | "true" | "false" | "default" | string_literal }
 
 integer = @{ int_const | "+" ~ int_const | "-" ~ int_const }
 int_const = @{ int_const_hex | int_const_dec }
 int_const_dec = @{ "0" | (ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
 int_const_hex = @{ "0" ~ ("x" | "X") ~ ASCII_HEX_DIGIT+ }
 ordinal_value = @{ "@" ~ int_const_dec }
+
+float = @{
+  ("+" | "-")? ~
+  float_dec ~
+  ("." ~ ASCII_DIGIT*)? ~
+  float_exp?
+}
+float_dec = @{ "0" | (ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
+float_exp = @{ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+) }
 
 string_literal = ${ "\"" ~ string_inner ~ "\"" }
 string_inner = @{ string_char* }
