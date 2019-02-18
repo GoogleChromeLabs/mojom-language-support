@@ -164,14 +164,10 @@ fn into_union<'a>(mut pairs: Pairs<'a>) -> Union<'a> {
     let name = pairs.next().unwrap().as_span();
     let mut fields = Vec::new();
     for inner in pairs {
-        //let item = inner.into_inner().next().unwrap();
         let item = inner;
         let item = match item.as_rule() {
             Rule::union_field => into_union_field(item.into_inner()),
-            _ => {
-                println!("{:?}", item);
-                unreachable!();
-            }
+            _ => unreachable!(),
         };
         fields.push(item);
     }
@@ -274,50 +270,54 @@ fn into_interface<'a>(mut pairs: Pairs<'a>) -> Interface<'a> {
 }
 
 #[derive(Debug)]
-pub enum Definition<'a> {
+pub enum Statement<'a> {
+    Module, // TODO: Support
+    Import, // TODO: Support
     Interface(Interface<'a>),
     Struct(Struct<'a>),
     Union(Union<'a>),
-    _Dummy, // Just for enforcing multiple match arms
+    Enum(Enum<'a>),
+    Const(Const<'a>),
+}
+
+fn into_statement<'a>(mut pairs: Pairs<'a>) -> Statement<'a> {
+    let stmt = pairs.next().unwrap();
+    match stmt.as_rule() {
+        Rule::interface => Statement::Interface(into_interface(stmt.into_inner())),
+        Rule::struct_stmt => Statement::Struct(into_struct(stmt.into_inner())),
+        Rule::union_stmt => Statement::Union(into_union(stmt.into_inner())),
+        Rule::enum_stmt => Statement::Enum(into_enum(stmt.into_inner())),
+        Rule::const_stmt => Statement::Const(into_const(stmt.into_inner())),
+        _ => unreachable!(),
+    }
 }
 
 #[derive(Debug)]
-pub struct Mojom<'a> {
-    pub definitions: Vec<Definition<'a>>,
+pub struct MojomFile<'a> {
+    pub stmts: Vec<Statement<'a>>,
+}
+
+fn into_mojom_file<'a>(pairs: Pairs<'a>) -> MojomFile<'a> {
+    let mut stmts = Vec::new();
+    for stmt in pairs {
+        let stmt = match stmt.as_rule() {
+            Rule::statement => into_statement(stmt.into_inner()),
+            Rule::EOI => break,
+            _ => unreachable!(),
+        };
+        stmts.push(stmt);
+    }
+    MojomFile { stmts: stmts }
 }
 
 /// Parses `input`.
-pub fn parse(input: &str) -> Result<Mojom, Error<Rule>> {
-    // If parsing is successful, it safe to assume that next().unwrap() returns
-    // valid `mojo_file` rule.
+pub fn parse(input: &str) -> Result<MojomFile, Error<Rule>> {
     let parsed = MojomParser::parse(Rule::mojom_file, &input)?
         .next()
         .unwrap()
         .into_inner();
-
-    let mut definitions = Vec::new();
-    for stmt in parsed {
-        match stmt.as_rule() {
-            Rule::interface => {
-                let intr = into_interface(stmt.into_inner());
-                definitions.push(Definition::Interface(intr));
-            }
-            Rule::struct_stmt => {
-                let st = into_struct(stmt.into_inner());
-                definitions.push(Definition::Struct(st));
-            }
-            Rule::union_stmt => {
-                let un = into_union(stmt.into_inner());
-                definitions.push(Definition::Union(un));
-            }
-            Rule::EOI => break,
-            _ => unreachable!(),
-        }
-    }
-
-    Ok(Mojom {
-        definitions: definitions,
-    })
+    let mojom = into_mojom_file(parsed);
+    Ok(mojom)
 }
 
 #[cfg(test)]
@@ -326,7 +326,15 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        let input = "\n
+        let input = r#"
+        enum MyEnum { kFoo, kBar, kBaz };
+        const string kMyConst = "const_value";
+
+        // This is MyInterface
+        interface MyInterface {
+            MyMethod() => (/* empty */);
+        };
+
         interface InterfaceA {};
 
         // This is comment.
@@ -336,15 +344,15 @@ mod tests {
         interface InterfaceC {};
 
         interface InterfaceD {
-            const string kMessage = \"message\";
+            const string kMessage = "message";
             enum SomeEnum { Foo, Bar, Baz, };
             MethodA(string message) => ();
             MethodB() => (int32 result);
             [Attr2] MethodC(associated InterfaceA assoc) => (map<string, int8> result);
         };
-        ";
+        "#;
         let res = parse(input).unwrap();
-        assert_eq!(4, res.definitions.len());
+        assert_eq!(7, res.stmts.len());
     }
 
     #[test]

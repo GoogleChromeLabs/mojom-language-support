@@ -143,10 +143,10 @@ fn publish_diagnotics(
     write_notification(writer, "textDocument/publishDiagnostics", params)
 }
 
-fn _dbg_print_ast(ast: &mojom_parser::Mojom) {
-    for definition in &ast.definitions {
-        match definition {
-            mojom_parser::Definition::Interface(ref intr) => {
+fn _dbg_print_ast(ast: &mojom_parser::MojomFile) {
+    for stmt in &ast.stmts {
+        match stmt {
+            mojom_parser::Statement::Interface(ref intr) => {
                 let (line, col) = intr.name.start_pos().line_col();
                 eprintln!("{}:{}: name: {}", line, col, intr.name.as_str());
             }

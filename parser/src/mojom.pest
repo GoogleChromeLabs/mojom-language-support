@@ -110,6 +110,14 @@ string_char = {
   | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
 }
 
+statement = {
+  struct_stmt |
+  union_stmt |
+  interface |
+  enum_stmt |
+  const_stmt
+}
+
 mojom_file = {
-  SOI ~ (interface)* ~ EOI
+  SOI ~ statement* ~ EOI
 }
