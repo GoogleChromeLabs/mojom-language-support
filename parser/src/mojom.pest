@@ -24,6 +24,11 @@ struct_item = {
 struct_field = { attribute_section? ~ type_spec ~ name ~ ordinal_value? ~ default? ~ ";" }
 default = { "=" ~ constant }
 
+union_stmt = {
+  attribute_section? ~ "union" ~ name ~ "{" ~ union_field* ~ "}" ~ ";"
+}
+union_field = { attribute_section? ~ type_spec ~ name ~ ordinal_value? ~ ";" }
+
 interface = {
   attribute_section? ~ "interface" ~ name ~ "{" ~ interface_body* ~ "}" ~ ";"
 }

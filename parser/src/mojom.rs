@@ -135,6 +135,53 @@ fn into_struct<'a>(mut pairs: Pairs<'a>) -> Struct<'a> {
 }
 
 #[derive(Debug)]
+pub struct UnionField<'a> {
+    pub typ: Span<'a>,
+    pub name: Span<'a>,
+    pub ordinal: Option<Span<'a>>,
+}
+
+fn into_union_field<'a>(mut pairs: Pairs<'a>) -> UnionField<'a> {
+    _skip_attribute_list(&mut pairs);
+    let typ = pairs.next().unwrap().as_span();
+    let name = pairs.next().unwrap().as_span();
+    let ordinal = pairs.next().map(|ord| ord.as_span());
+    UnionField {
+        typ: typ,
+        name: name,
+        ordinal: ordinal,
+    }
+}
+
+#[derive(Debug)]
+pub struct Union<'a> {
+    pub name: Span<'a>,
+    pub fields: Vec<UnionField<'a>>,
+}
+
+fn into_union<'a>(mut pairs: Pairs<'a>) -> Union<'a> {
+    _skip_attribute_list(&mut pairs);
+    let name = pairs.next().unwrap().as_span();
+    let mut fields = Vec::new();
+    for inner in pairs {
+        //let item = inner.into_inner().next().unwrap();
+        let item = inner;
+        let item = match item.as_rule() {
+            Rule::union_field => into_union_field(item.into_inner()),
+            _ => {
+                println!("{:?}", item);
+                unreachable!();
+            }
+        };
+        fields.push(item);
+    }
+    Union {
+        name: name,
+        fields: fields,
+    }
+}
+
+#[derive(Debug)]
 pub struct Parameter<'a> {
     pub typ: Span<'a>,
     pub name: Span<'a>,
@@ -230,6 +277,7 @@ fn into_interface<'a>(mut pairs: Pairs<'a>) -> Interface<'a> {
 pub enum Definition<'a> {
     Interface(Interface<'a>),
     Struct(Struct<'a>),
+    Union(Union<'a>),
     _Dummy, // Just for enforcing multiple match arms
 }
 
@@ -257,6 +305,10 @@ pub fn parse(input: &str) -> Result<Mojom, Error<Rule>> {
             Rule::struct_stmt => {
                 let st = into_struct(stmt.into_inner());
                 definitions.push(Definition::Struct(st));
+            }
+            Rule::union_stmt => {
+                let un = into_union(stmt.into_inner());
+                definitions.push(Definition::Union(un));
             }
             Rule::EOI => break,
             _ => unreachable!(),
@@ -504,5 +556,25 @@ mod tests {
             _ => unreachable!(),
         };
         assert_eq!("MyEnum", member.name.as_str());
+    }
+
+    #[test]
+    fn test_union_stmt() {
+        let input = "union MyUnion {
+            string str_field;
+            StringPair pair_field;
+            int64 int64_field;
+        };";
+        let parsed = MojomParser::parse(Rule::union_stmt, &input)
+            .unwrap()
+            .next()
+            .unwrap();
+        let stmt = into_union(parsed.into_inner());
+        assert_eq!("MyUnion", stmt.name.as_str());
+        let fields = &stmt.fields;
+        assert_eq!(3, fields.len());
+        assert_eq!("str_field", fields[0].name.as_str());
+        assert_eq!("pair_field", fields[1].name.as_str());
+        assert_eq!("int64_field", fields[2].name.as_str());
     }
 }
