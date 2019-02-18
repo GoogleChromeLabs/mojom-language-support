@@ -4,9 +4,22 @@ COMMENT = _{ line_comment | block_comment }
 
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 
-char = { ASCII_ALPHA | "_" }
+mojom_file = {
+  SOI ~ statement* ~ EOI
+}
 
-name = @{ char ~ (char | ASCII_DIGIT)* }
+statement = {
+  module_stmt |
+  import_stmt |
+  struct_stmt |
+  union_stmt |
+  interface |
+  enum_stmt |
+  const_stmt
+}
+
+module_stmt = { attribute_section? ~ "module" ~ identifier ~ ";" }
+import_stmt = { "import" ~ string_literal ~ ";" }
 
 attribute_section = {
   "[" ~ "]" |
@@ -94,6 +107,9 @@ parameter_list = {
 parameter = { attribute_section? ~ type_spec ~ name ~ ordinal_value? }
 response = { "=>" ~ parameter_list }
 
+char = { ASCII_ALPHA | "_" }
+name = @{ char ~ (char | ASCII_DIGIT)* }
+
 // TODO: Support float
 literal = { integer | "true" | "false" | "default" | string_literal }
 
@@ -108,16 +124,4 @@ string_inner = @{ string_char* }
 string_char = {
   !("\"" | "\\") ~ ANY
   | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
-}
-
-statement = {
-  struct_stmt |
-  union_stmt |
-  interface |
-  enum_stmt |
-  const_stmt
-}
-
-mojom_file = {
-  SOI ~ statement* ~ EOI
 }

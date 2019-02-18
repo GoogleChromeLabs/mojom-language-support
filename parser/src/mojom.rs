@@ -19,6 +19,27 @@ fn _skip_attribute_list(pairs: &mut Pairs) {
 }
 
 #[derive(Debug)]
+pub struct Module<'a> {
+    pub name: Span<'a>,
+}
+
+fn into_module<'a>(mut pairs: Pairs<'a>) -> Module<'a> {
+    _skip_attribute_list(&mut pairs);
+    let name = pairs.next().unwrap().as_span();
+    Module { name: name }
+}
+
+#[derive(Debug)]
+pub struct Import<'a> {
+    pub path: Span<'a>,
+}
+
+fn into_import<'a>(mut pairs: Pairs<'a>) -> Import<'a> {
+    let path = pairs.next().unwrap().as_span();
+    Import { path: path }
+}
+
+#[derive(Debug)]
 pub struct Const<'a> {
     pub typ: Span<'a>,
     pub name: Span<'a>,
@@ -271,8 +292,8 @@ fn into_interface<'a>(mut pairs: Pairs<'a>) -> Interface<'a> {
 
 #[derive(Debug)]
 pub enum Statement<'a> {
-    Module, // TODO: Support
-    Import, // TODO: Support
+    Module(Module<'a>),
+    Import(Import<'a>),
     Interface(Interface<'a>),
     Struct(Struct<'a>),
     Union(Union<'a>),
@@ -283,6 +304,8 @@ pub enum Statement<'a> {
 fn into_statement<'a>(mut pairs: Pairs<'a>) -> Statement<'a> {
     let stmt = pairs.next().unwrap();
     match stmt.as_rule() {
+        Rule::module_stmt => Statement::Module(into_module(stmt.into_inner())),
+        Rule::import_stmt => Statement::Import(into_import(stmt.into_inner())),
         Rule::interface => Statement::Interface(into_interface(stmt.into_inner())),
         Rule::struct_stmt => Statement::Struct(into_struct(stmt.into_inner())),
         Rule::union_stmt => Statement::Union(into_union(stmt.into_inner())),
@@ -327,6 +350,10 @@ mod tests {
     #[test]
     fn test_parse() {
         let input = r#"
+        module test.module;
+        import "a.b.c";
+        import "a.c.d";
+
         enum MyEnum { kFoo, kBar, kBaz };
         const string kMyConst = "const_value";
 
@@ -352,7 +379,7 @@ mod tests {
         };
         "#;
         let res = parse(input).unwrap();
-        assert_eq!(7, res.stmts.len());
+        assert_eq!(10, res.stmts.len());
     }
 
     #[test]
@@ -439,6 +466,28 @@ mod tests {
         parse_type!("associated MyInterface");
         parse_type!("associated MyInterface&");
         parse_type!("bool?");
+    }
+
+    #[test]
+    fn test_module_stmt() {
+        let input = "module my.mod;";
+        let parsed = MojomParser::parse(Rule::module_stmt, &input)
+            .unwrap()
+            .next()
+            .unwrap();
+        let stmt = into_module(parsed.into_inner());
+        assert_eq!("my.mod", stmt.name.as_str());
+    }
+
+    #[test]
+    fn test_import_stmt() {
+        let input = r#"import "my.mod";"#;
+        let parsed = MojomParser::parse(Rule::import_stmt, &input)
+            .unwrap()
+            .next()
+            .unwrap();
+        let stmt = into_import(parsed.into_inner());
+        assert_eq!(r#""my.mod""#, stmt.path.as_str());
     }
 
     #[test]
