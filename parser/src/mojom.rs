@@ -84,10 +84,16 @@ pub struct Enum<'a> {
 fn into_enum<'a>(mut pairs: Pairs<'a>) -> Enum<'a> {
     _skip_attribute_list(&mut pairs);
     let name = pairs.next().unwrap().as_span();
-    let mut values = Vec::new();
-    for item in pairs {
-        values.push(into_enum_value(item.into_inner()));
-    }
+    let values = match pairs.next() {
+        Some(pairs) => {
+            let mut values = Vec::new();
+            for item in pairs.into_inner() {
+                values.push(into_enum_value(item.into_inner()));
+            }
+            values
+        }
+        None => Vec::new(),
+    };
     Enum {
         name: name,
         values: values,
@@ -537,6 +543,15 @@ mod tests {
         assert_eq!("2", values[1].value.as_ref().unwrap().as_str());
         assert_eq!("kThree", values[2].name.as_str());
         assert_eq!("IdentValue", values[2].value.as_ref().unwrap().as_str());
+
+        let input = "[Native] enum MyEnum;";
+        let parsed = MojomParser::parse(Rule::enum_stmt, &input)
+            .unwrap()
+            .next()
+            .unwrap();
+        let stmt = into_enum(parsed.into_inner());
+        assert_eq!("MyEnum", stmt.name.as_str());
+        assert_eq!(0, stmt.values.len());
     }
 
     #[test]

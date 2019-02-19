@@ -81,11 +81,8 @@ const_stmt = {
 }
 constant = { (literal | identifier) }
 
-enum_stmt = {
-  attribute_section? ~ "enum" ~ name ~ "{"
-    ~ enum_value ~ ("," ~ enum_value)* ~ ","? ~
-  "}" ~ ";"
-}
+enum_stmt = { attribute_section? ~ "enum" ~ name ~ enum_block? ~ ";" }
+enum_block = { "{" ~ enum_value ~ ("," ~ enum_value)* ~ ","? ~ "}" }
 enum_value = {
   attribute_section? ~ name ~ "=" ~ integer |
   attribute_section? ~ name ~ "=" ~ identifier |
