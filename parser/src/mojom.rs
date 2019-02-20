@@ -35,6 +35,7 @@ pub struct Import<'a> {
 }
 
 fn into_import<'a>(mut pairs: Pairs<'a>) -> Import<'a> {
+    _skip_attribute_list(&mut pairs);
     let path = pairs.next().unwrap().as_span();
     Import { path: path }
 }
@@ -525,6 +526,14 @@ mod tests {
     #[test]
     fn test_import_stmt() {
         let input = r#"import "my.mod";"#;
+        let parsed = MojomParser::parse(Rule::import_stmt, &input)
+            .unwrap()
+            .next()
+            .unwrap();
+        let stmt = into_import(parsed.into_inner());
+        assert_eq!(r#""my.mod""#, stmt.path.as_str());
+
+        let input = r#"[Attr] import "my.mod";"#;
         let parsed = MojomParser::parse(Rule::import_stmt, &input)
             .unwrap()
             .next()

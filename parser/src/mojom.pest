@@ -19,7 +19,7 @@ statement = {
 }
 
 module_stmt = { attribute_section? ~ "module" ~ identifier ~ ";" }
-import_stmt = { "import" ~ string_literal ~ ";" }
+import_stmt = { attribute_section? ~ "import" ~ string_literal ~ ";" }
 
 attribute_section = {
   "[" ~ "]" |
