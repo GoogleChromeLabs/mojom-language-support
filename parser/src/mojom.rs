@@ -563,6 +563,15 @@ mod tests {
         assert_eq!("kThree", values[2].name.as_str());
         assert_eq!("IdentValue", values[2].value.as_ref().unwrap().as_str());
 
+        let input = "enum MyEnum {};";
+        let parsed = MojomParser::parse(Rule::enum_stmt, &input)
+            .unwrap()
+            .next()
+            .unwrap();
+        let stmt = into_enum(parsed.into_inner());
+        assert_eq!("MyEnum", stmt.name.as_str());
+        assert_eq!(0, stmt.values.len());
+
         let input = "[Native] enum MyEnum;";
         let parsed = MojomParser::parse(Rule::enum_stmt, &input)
             .unwrap()
