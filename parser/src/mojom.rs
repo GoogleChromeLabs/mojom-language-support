@@ -422,12 +422,31 @@ mod tests {
     #[test]
     fn test_float() {
         assert_eq!("0.0", parse_part(Rule::float, "0.0"));
+        assert_eq!("1.0", parse_part(Rule::float, "1.0"));
         assert_eq!("3.141", parse_part(Rule::float, "3.141"));
         assert_eq!("+0.123", parse_part(Rule::float, "+0.123"));
         assert_eq!("-5.67", parse_part(Rule::float, "-5.67"));
         assert_eq!("4e5", parse_part(Rule::float, "4e5"));
         assert_eq!("-7e+15", parse_part(Rule::float, "-7e+15"));
         assert_eq!("+9e-2", parse_part(Rule::float, "+9e-2"));
+    }
+
+    #[test]
+    fn test_number() {
+        assert_eq!("0", parse_part(Rule::number, "0"));
+        assert_eq!("123", parse_part(Rule::number, "123"));
+        assert_eq!("-42", parse_part(Rule::number, "-42"));
+        assert_eq!("0xdeadbeef", parse_part(Rule::number, "0xdeadbeef"));
+        assert_eq!("+0X1AB4", parse_part(Rule::number, "+0X1AB4"));
+
+        assert_eq!("0.0", parse_part(Rule::number, "0.0"));
+        assert_eq!("1.0", parse_part(Rule::number, "1.0"));
+        assert_eq!("3.141", parse_part(Rule::number, "3.141"));
+        assert_eq!("+0.123", parse_part(Rule::number, "+0.123"));
+        assert_eq!("-5.67", parse_part(Rule::number, "-5.67"));
+        assert_eq!("4e5", parse_part(Rule::number, "4e5"));
+        assert_eq!("-7e+15", parse_part(Rule::number, "-7e+15"));
+        assert_eq!("+9e-2", parse_part(Rule::number, "+9e-2"));
     }
 
     #[test]
@@ -591,6 +610,7 @@ mod tests {
             const int64 kInvalidId = -1;
             int64 my_id;
             MyInterface? my_interface;
+            float my_float_value = 0.1;
         };";
         let parsed = MojomParser::parse(Rule::struct_stmt, &input)
             .unwrap()
@@ -599,7 +619,7 @@ mod tests {
         let stmt = into_struct(parsed.into_inner());
         assert_eq!("MyStruct", stmt.name.as_str());
         let members = &stmt.members;
-        assert_eq!(3, members.len());
+        assert_eq!(4, members.len());
 
         let item = match &members[0] {
             StructBody::Const(item) => item,
@@ -618,6 +638,12 @@ mod tests {
             _ => unreachable!(),
         };
         assert_eq!("my_interface", item.name.as_str());
+
+        let item = match &members[3] {
+            StructBody::Field(item) => item,
+            _ => unreachable!(),
+        };
+        assert_eq!("my_float_value", item.name.as_str());
 
         let input = "[Native] struct MyStruct;";
         let parsed = MojomParser::parse(Rule::struct_stmt, &input)

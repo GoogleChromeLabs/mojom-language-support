@@ -107,12 +107,22 @@ response = { "=>" ~ parameter_list }
 char = { ASCII_ALPHA | "_" }
 name = @{ char ~ (char | ASCII_DIGIT)* }
 
-literal = { integer | float | "true" | "false" | "default" | string_literal }
+literal = { number | "true" | "false" | "default" | string_literal }
+
+number = @{ number_const | "+" ~ number_const | "-" ~ number_const }
+number_const = @{
+  "0"? ~ "." ~ ASCII_DIGIT* ~ float_exp? |
+  "0" ~ ("x" | "X") ~ ASCII_HEX_DIGIT+ |
+  number_part ~ ("." ~ ASCII_DIGIT*)? ~ float_exp? |
+  "0"
+}
+number_part = @{ (ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
 
 integer = @{ int_const | "+" ~ int_const | "-" ~ int_const }
 int_const = @{ int_const_hex | int_const_dec }
 int_const_dec = @{ "0" | (ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
 int_const_hex = @{ "0" ~ ("x" | "X") ~ ASCII_HEX_DIGIT+ }
+
 ordinal_value = @{ "@" ~ int_const_dec }
 
 float = @{
