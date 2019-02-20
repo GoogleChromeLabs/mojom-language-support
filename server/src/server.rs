@@ -37,8 +37,8 @@ fn create_server_capabilities() -> lsp_types::ServerCapabilities {
     let options = lsp_types::TextDocumentSyncOptions {
         open_close: Some(true),
         change: Some(lsp_types::TextDocumentSyncKind::Full),
-        will_save: Some(true),
-        will_save_wait_until: Some(false),
+        will_save: None,
+        will_save_wait_until: None,
         save: None,
     };
 
@@ -113,6 +113,10 @@ fn get_params<P: serde::de::DeserializeOwned>(params: Value) -> Result<P> {
     serde_json::from_value::<P>(params).map_err(|err| Error::ProtocolError(err.to_string()))
 }
 
+fn do_nothing() -> Result<()> {
+    Ok(())
+}
+
 fn handle_notification(
     writer: &mut impl Write,
     ctx: &mut ServerContext,
@@ -130,7 +134,14 @@ fn handle_notification(
         DidChangeTextDocument::METHOD => {
             get_params(msg.params).and_then(|params| did_change_text_document(writer, ctx, params))
         }
-        _ => unimplemented!(),
+        // Accept following notifications but do nothing.
+        DidChangeConfiguration::METHOD => do_nothing(),
+        WillSaveTextDocument::METHOD => do_nothing(),
+        DidSaveTextDocument::METHOD => do_nothing(),
+        // Intentionally crash for unsupported notifications.
+        _ => {
+            panic!(format!("Notification `{}` isn't supported yet", msg.method.as_str()));
+        }
     }
 }
 
@@ -205,9 +216,9 @@ fn _check_syntax(
             };
             let diagostic = lsp_types::Diagnostic {
                 range: range,
-                severity: None,
-                code: None,
-                source: None,
+                severity: Some(lsp_types::DiagnosticSeverity::Error),
+                code: Some(lsp_types::NumberOrString::Number(1)),
+                source: Some("mojomlsp".to_owned()),
                 message: "Syntax error".to_owned(),
                 related_information: None,
             };
