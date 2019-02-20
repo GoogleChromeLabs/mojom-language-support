@@ -18,6 +18,13 @@ fn _skip_attribute_list(pairs: &mut Pairs) {
     }
 }
 
+fn consume_semicolon(pairs: &mut Pairs) {
+    match pairs.next().unwrap().as_rule() {
+        Rule::t_semicolon => (),
+        _ => unreachable!(),
+    };
+}
+
 #[derive(Debug)]
 pub struct Module<'a> {
     pub name: Span<'a>,
@@ -26,6 +33,7 @@ pub struct Module<'a> {
 fn into_module<'a>(mut pairs: Pairs<'a>) -> Module<'a> {
     _skip_attribute_list(&mut pairs);
     let name = pairs.next().unwrap().as_span();
+    consume_semicolon(&mut pairs);
     Module { name: name }
 }
 
@@ -37,6 +45,7 @@ pub struct Import<'a> {
 fn into_import<'a>(mut pairs: Pairs<'a>) -> Import<'a> {
     _skip_attribute_list(&mut pairs);
     let path = pairs.next().unwrap().as_span();
+    consume_semicolon(&mut pairs);
     Import { path: path }
 }
 
@@ -53,6 +62,7 @@ fn into_const<'a>(mut pairs: Pairs<'a>) -> Const<'a> {
     let typ = pair.as_span();
     let name = pairs.next().unwrap().as_span();
     let value = pairs.next().unwrap().as_span();
+    consume_semicolon(&mut pairs);
     Const {
         typ: typ,
         name: name,
@@ -85,16 +95,18 @@ pub struct Enum<'a> {
 fn into_enum<'a>(mut pairs: Pairs<'a>) -> Enum<'a> {
     _skip_attribute_list(&mut pairs);
     let name = pairs.next().unwrap().as_span();
-    let values = match pairs.next() {
-        Some(pairs) => {
-            let mut values = Vec::new();
-            for item in pairs.into_inner() {
-                values.push(into_enum_value(item.into_inner()));
+    let mut values = Vec::new();
+    for item in pairs {
+        match item.as_rule() {
+            Rule::enum_block => {
+                for item in item.into_inner() {
+                    values.push(into_enum_value(item.into_inner()));
+                }
             }
-            values
+            Rule::t_semicolon => break,
+            _ => unreachable!(),
         }
-        None => Vec::new(),
-    };
+    }
     Enum {
         name: name,
         values: values,
@@ -119,10 +131,11 @@ fn into_struct_field<'a>(mut pairs: Pairs<'a>) -> StructField<'a> {
         ordinal: None,
         default: None,
     };
-    for pair in pairs {
-        match pair.as_rule() {
-            Rule::ordinal_value => res.ordinal = Some(pair.as_span()),
-            Rule::default => res.default = Some(pair.as_span()),
+    for item in pairs {
+        match item.as_rule() {
+            Rule::ordinal_value => res.ordinal = Some(item.as_span()),
+            Rule::default => res.default = Some(item.as_span()),
+            Rule::t_semicolon => break,
             _ => unreachable!(),
         }
     }
@@ -155,6 +168,7 @@ fn into_struct<'a>(mut pairs: Pairs<'a>) -> Struct<'a> {
                     Rule::const_stmt => StructBody::Const(into_const(item.into_inner())),
                     Rule::enum_stmt => StructBody::Enum(into_enum(item.into_inner())),
                     Rule::struct_field => StructBody::Field(into_struct_field(item.into_inner())),
+                    Rule::t_semicolon => break,
                     _ => unreachable!(),
                 };
                 members.push(item);
@@ -180,7 +194,14 @@ fn into_union_field<'a>(mut pairs: Pairs<'a>) -> UnionField<'a> {
     _skip_attribute_list(&mut pairs);
     let typ = pairs.next().unwrap().as_span();
     let name = pairs.next().unwrap().as_span();
-    let ordinal = pairs.next().map(|ord| ord.as_span());
+    let mut ordinal = None;
+    for item in pairs {
+        match item.as_rule() {
+            Rule::ordinal_value => ordinal = Some(item.as_span()),
+            Rule::t_semicolon => break,
+            _ => unreachable!(),
+        }
+    }
     UnionField {
         typ: typ,
         name: name,
@@ -198,10 +219,10 @@ fn into_union<'a>(mut pairs: Pairs<'a>) -> Union<'a> {
     _skip_attribute_list(&mut pairs);
     let name = pairs.next().unwrap().as_span();
     let mut fields = Vec::new();
-    for inner in pairs {
-        let item = inner;
+    for item in pairs {
         let item = match item.as_rule() {
             Rule::union_field => into_union_field(item.into_inner()),
+            Rule::t_semicolon => break,
             _ => unreachable!(),
         };
         fields.push(item);
@@ -278,6 +299,16 @@ pub enum InterfaceMember<'a> {
     Method(Method<'a>),
 }
 
+fn into_interface_member<'a>(mut pairs: Pairs<'a>) -> InterfaceMember<'a> {
+    let member = pairs.next().unwrap();
+    match member.as_rule() {
+        Rule::const_stmt => InterfaceMember::Const(into_const(member.into_inner())),
+        Rule::enum_stmt => InterfaceMember::Enum(into_enum(member.into_inner())),
+        Rule::method_stmt => InterfaceMember::Method(into_method(member.into_inner())),
+        _ => unreachable!(),
+    }
+}
+
 #[derive(Debug)]
 pub struct Interface<'a> {
     pub name: Span<'a>,
@@ -288,15 +319,15 @@ fn into_interface<'a>(mut pairs: Pairs<'a>) -> Interface<'a> {
     _skip_attribute_list(&mut pairs);
     let name = pairs.next().unwrap().as_span();
     let mut members = Vec::new();
-    for member in pairs {
-        let member = member.into_inner().next().unwrap();
-        let member = match member.as_rule() {
-            Rule::const_stmt => InterfaceMember::Const(into_const(member.into_inner())),
-            Rule::enum_stmt => InterfaceMember::Enum(into_enum(member.into_inner())),
-            Rule::method_stmt => InterfaceMember::Method(into_method(member.into_inner())),
+    for item in pairs {
+        match item.as_rule() {
+            Rule::interface_body => {
+                let member = into_interface_member(item.into_inner());
+                members.push(member);
+            }
+            Rule::t_semicolon => break,
             _ => unreachable!(),
-        };
-        members.push(member);
+        }
     }
     Interface {
         name: name,
@@ -368,8 +399,26 @@ mod tests {
         import "a.b.c";
         import "a.c.d";
 
-        enum MyEnum { kFoo, kBar, kBaz };
+        enum MyEnum;
+        enum MyEnum2 { kFoo, kBar, kBaz };
+
         const string kMyConst = "const_value";
+        const int32 kMyConst2 = -1;
+
+        struct MyStruct {};
+        struct MyStruct2 {
+            uint8 my_uint8_value;
+            float my_float_value = 0.1;
+        };
+
+        union MyUnion {
+            string str_field;
+            uint8 uint8_field;
+        };
+        union MyUnion2 {
+            MyInterface myinterface_field;
+            uint32 uint32_field;
+        };
 
         // This is MyInterface
         interface MyInterface {
@@ -393,7 +442,7 @@ mod tests {
         };
         "#;
         let res = parse(input).unwrap();
-        assert_eq!(10, res.stmts.len());
+        assert_eq!(16, res.stmts.len());
     }
 
     #[test]

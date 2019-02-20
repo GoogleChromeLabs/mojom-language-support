@@ -1,3 +1,7 @@
+// This is written in PEG and looks slightly different from the original
+// grammar. Please consult the pest's document which describes how PEG works.
+// https://pest.rs/book/grammars/peg.html
+
 line_comment = { "//" ~ (!NEWLINE ~ ANY)* }
 block_comment = { "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 COMMENT = _{ line_comment | block_comment }
@@ -18,8 +22,8 @@ statement = {
   const_stmt
 }
 
-module_stmt = { attribute_section? ~ "module" ~ identifier ~ ";" }
-import_stmt = { attribute_section? ~ "import" ~ string_literal ~ ";" }
+module_stmt = { attribute_section? ~ "module" ~ identifier ~ t_semicolon }
+import_stmt = { attribute_section? ~ "import" ~ string_literal ~ t_semicolon }
 
 attribute_section = {
   "[" ~ "]" |
@@ -27,23 +31,23 @@ attribute_section = {
 }
 attribute = { name ~ "=" ~ name | name ~ "=" ~ literal | name }
 
-struct_stmt = { attribute_section? ~ "struct" ~ name ~ struct_body? ~ ";" }
+struct_stmt = { attribute_section? ~ "struct" ~ name ~ struct_body? ~ t_semicolon }
 struct_body = { "{" ~ struct_item* ~ "}" }
 struct_item = {
   const_stmt |
   enum_stmt |
   struct_field
 }
-struct_field = { attribute_section? ~ type_spec ~ name ~ ordinal_value? ~ default? ~ ";" }
+struct_field = { attribute_section? ~ type_spec ~ name ~ ordinal_value? ~ default? ~ t_semicolon }
 default = { "=" ~ constant }
 
 union_stmt = {
-  attribute_section? ~ "union" ~ name ~ "{" ~ union_field* ~ "}" ~ ";"
+  attribute_section? ~ "union" ~ name ~ "{" ~ union_field* ~ "}" ~ t_semicolon
 }
-union_field = { attribute_section? ~ type_spec ~ name ~ ordinal_value? ~ ";" }
+union_field = { attribute_section? ~ type_spec ~ name ~ ordinal_value? ~ t_semicolon }
 
 interface = {
-  attribute_section? ~ "interface" ~ name ~ "{" ~ interface_body* ~ "}" ~ ";"
+  attribute_section? ~ "interface" ~ name ~ "{" ~ interface_body* ~ "}" ~ t_semicolon
 }
 interface_body = {
   const_stmt | enum_stmt | method_stmt
@@ -77,11 +81,11 @@ interface_request = {
 }
 
 const_stmt = {
-  attribute_section? ~ "const" ~ type_spec ~ name ~ "=" ~ constant ~ ";"
+  attribute_section? ~ "const" ~ type_spec ~ name ~ "=" ~ constant ~ t_semicolon
 }
 constant = { (literal | identifier) }
 
-enum_stmt = { attribute_section? ~ "enum" ~ name ~ enum_block? ~ ";" }
+enum_stmt = { attribute_section? ~ "enum" ~ name ~ enum_block? ~ t_semicolon }
 enum_block = { "{" ~ enum_value? ~ ("," ~ enum_value)* ~ ","? ~ "}" }
 enum_value = {
   attribute_section? ~ name ~ "=" ~ integer |
@@ -140,3 +144,7 @@ string_char = {
   !("\"" | "\\") ~ ANY
   | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
 }
+
+// These aren't strictly needed to parse but useful to generate meaningful
+// error messages.
+t_semicolon = { ";" }
