@@ -140,7 +140,10 @@ fn handle_notification(
         DidSaveTextDocument::METHOD => do_nothing(),
         // Intentionally crash for unsupported notifications.
         _ => {
-            panic!(format!("Notification `{}` isn't supported yet", msg.method.as_str()));
+            panic!(format!(
+                "Notification `{}` isn't supported yet",
+                msg.method.as_str()
+            ));
         }
     }
 }
@@ -166,6 +169,39 @@ fn _dbg_print_ast(ast: &mojom_parser::MojomFile) {
     }
 }
 
+fn convert_error_position(line_col: &mojom_parser::LineColLocation) -> lsp_types::Range {
+    let (start, end) = match line_col {
+        mojom_parser::LineColLocation::Pos((line, col)) => {
+            let start = lsp_types::Position {
+                line: *line as u64 - 1,
+                character: *col as u64 - 1,
+            };
+            // ???
+            let end = lsp_types::Position {
+                line: *line as u64 - 1,
+                character: *col as u64 - 1,
+            };
+            (start, end)
+        }
+        mojom_parser::LineColLocation::Span(start, end) => {
+            // `start` and `end` are tuples like (line, col).
+            let start = lsp_types::Position {
+                line: start.0 as u64 - 1,
+                character: start.1 as u64 - 1,
+            };
+            let end = lsp_types::Position {
+                line: end.0 as u64 - 1,
+                character: end.1 as u64 - 1,
+            };
+            (start, end)
+        }
+    };
+    lsp_types::Range {
+        start: start,
+        end: end,
+    }
+}
+
 fn _check_syntax(
     writer: &mut impl Write,
     ctx: &mut ServerContext,
@@ -183,48 +219,18 @@ fn _check_syntax(
             ctx.has_error = false;
         }
         Err(err) => {
-            // Convert error location.
-            let (start, end) = match err.line_col {
-                mojom_parser::LineColLocation::Pos((line, col)) => {
-                    let start = lsp_types::Position {
-                        line: line as u64 - 1,
-                        character: col as u64 - 1,
-                    };
-                    // ???
-                    let end = lsp_types::Position {
-                        line: line as u64 - 1,
-                        character: col as u64 - 1,
-                    };
-                    (start, end)
-                }
-                mojom_parser::LineColLocation::Span(start, end) => {
-                    // `start` and `end` are tuples like (line, col).
-                    let start = lsp_types::Position {
-                        line: start.0 as u64 - 1,
-                        character: start.1 as u64 - 1,
-                    };
-                    let end = lsp_types::Position {
-                        line: end.0 as u64 - 1,
-                        character: end.1 as u64 - 1,
-                    };
-                    (start, end)
-                }
-            };
-            let range = lsp_types::Range {
-                start: start,
-                end: end,
-            };
-            let diagostic = lsp_types::Diagnostic {
+            let range = convert_error_position(&err.line_col);
+            let diagnostic = lsp_types::Diagnostic {
                 range: range,
                 severity: Some(lsp_types::DiagnosticSeverity::Error),
-                code: Some(lsp_types::NumberOrString::Number(1)),
-                source: Some("mojomlsp".to_owned()),
-                message: "Syntax error".to_owned(),
+                code: Some(lsp_types::NumberOrString::String("mojom".to_owned())),
+                source: Some("mojom-lsp".to_owned()),
+                message: err.to_string(),
                 related_information: None,
             };
             let params = lsp_types::PublishDiagnosticsParams {
                 uri: uri,
-                diagnostics: vec![diagostic],
+                diagnostics: vec![diagnostic],
             };
             publish_diagnotics(writer, params)?;
             ctx.has_error = true;
