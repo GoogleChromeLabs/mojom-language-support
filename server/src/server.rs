@@ -49,7 +49,7 @@ fn create_server_capabilities() -> lsp_types::ServerCapabilities {
         hover_provider: None,
         completion_provider: None,
         signature_help_provider: None,
-        definition_provider: None,
+        definition_provider: Some(true),
         type_definition_provider: None,
         implementation_provider: None,
         references_provider: None,
@@ -71,6 +71,13 @@ fn create_server_capabilities() -> lsp_types::ServerCapabilities {
 
 // Requests
 
+fn get_request_params<P: serde::de::DeserializeOwned>(
+    params: Value,
+) -> std::result::Result<P, ResponseError> {
+    serde_json::from_value::<P>(params)
+        .map_err(|err| ResponseError::new(ErrorCodes::InvalidRequest, err.to_string()))
+}
+
 fn handle_request(
     writer: &mut impl Write,
     ctx: &mut ServerContext,
@@ -79,9 +86,12 @@ fn handle_request(
     let id = msg.id;
     let method = msg.method.as_str();
 
+    use lsp_types::request::*;
     let res = match method {
-        "initialize" => initialize_request(),
-        "shutdown" => shutdown_request(ctx),
+        Initialize::METHOD => initialize_request(),
+        Shutdown::METHOD => shutdown_request(ctx),
+        GotoDefinition::METHOD => get_request_params(msg.params)
+            .and_then(|params| goto_definition_request(writer, ctx, params)),
         _ => unimplemented!(),
     };
     match res {
@@ -91,9 +101,9 @@ fn handle_request(
     Ok(())
 }
 
-type MessageResult<T> = std::result::Result<T, ResponseError>;
+type RequestResult = std::result::Result<Value, ResponseError>;
 
-fn initialize_request() -> MessageResult<Value> {
+fn initialize_request() -> RequestResult {
     // The server has been initialized already.
     let error_message = "Unexpected initialize message".to_owned();
     Err(ResponseError::new(
@@ -102,8 +112,17 @@ fn initialize_request() -> MessageResult<Value> {
     ))
 }
 
-fn shutdown_request(ctx: &mut ServerContext) -> MessageResult<Value> {
+fn shutdown_request(ctx: &mut ServerContext) -> RequestResult {
     ctx.state = State::ShuttingDown;
+    Ok(Value::Null)
+}
+
+fn goto_definition_request(
+    _writer: &mut Write,
+    _ctx: &mut ServerContext,
+    _params: lsp_types::TextDocumentPositionParams,
+) -> RequestResult {
+    // Not implemented, just return null for now.
     Ok(Value::Null)
 }
 
