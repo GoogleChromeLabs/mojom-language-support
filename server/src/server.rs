@@ -7,6 +7,7 @@ use crate::protocol::{
     write_success_result, ErrorCodes, Message, NotificationMessage, RequestMessage, ResponseError,
 };
 
+use crate::definition::Definitions;
 use crate::{Error, Result};
 
 #[derive(PartialEq)]
@@ -19,6 +20,10 @@ struct ServerContext {
     state: State,
     // True when the previous text document has errors.
     has_error: bool,
+    // Contains the current document text.
+    text: String,
+    // Definitions in the current document. Tentative.
+    defs: Option<Definitions>,
     // Set when `exit` notification is received.
     exit_code: Option<i32>,
 }
@@ -28,6 +33,8 @@ impl ServerContext {
         ServerContext {
             state: State::Initialized,
             has_error: false,
+            text: String::new(),
+            defs: None,
             exit_code: None,
         }
     }
@@ -117,13 +124,63 @@ fn shutdown_request(ctx: &mut ServerContext) -> RequestResult {
     Ok(Value::Null)
 }
 
+fn _get_offset_from_position(text: &str, pos: lsp_types::Position) -> usize {
+    let pos_line = pos.line as usize;
+    let pos_col = pos.character as usize;
+    let mut offset = 0;
+    for (i, line) in text.lines().enumerate() {
+        if i == pos_line {
+            break;
+        }
+        offset += line.len() + 1;
+    }
+    offset + pos_col
+}
+
+fn _get_token(text: &str, pos: lsp_types::Position) -> &str {
+    let offset = _get_offset_from_position(text, pos);
+    let mut s = offset;
+    for ch in text[..offset].chars().rev() {
+        if !ch.is_ascii_alphanumeric() && ch != '_' {
+            break;
+        }
+        s -= 1;
+    }
+    let mut e = offset;
+    for ch in text[offset..].chars() {
+        if !ch.is_ascii_alphanumeric() && ch != '_' {
+            break;
+        }
+        e += 1;
+    }
+    &text[s..e]
+}
+
 fn goto_definition_request(
-    _writer: &mut Write,
-    _ctx: &mut ServerContext,
-    _params: lsp_types::TextDocumentPositionParams,
+    writer: &mut Write,
+    ctx: &mut ServerContext,
+    params: lsp_types::TextDocumentPositionParams,
 ) -> RequestResult {
-    // Not implemented, just return null for now.
-    Ok(Value::Null)
+    match &ctx.defs {
+        Some(ref defs) => {
+            let pos = params.position;
+            // TODO: Use AST to get token on the `pos`.
+            let name = _get_token(&ctx.text, pos);
+            find_definition(writer, name, defs)
+        }
+        None => Ok(Value::Null),
+    }
+}
+
+fn find_definition(_writer: &mut Write, name: &str, defs: &Definitions) -> RequestResult {
+    match defs.find(name) {
+        Some(loc) => {
+            // TODO: Don't use unwrap().
+            let loc = serde_json::to_value(loc).unwrap();
+            Ok(loc)
+        }
+        None => Ok(Value::Null),
+    }
 }
 
 // Notifications
@@ -176,18 +233,6 @@ fn publish_diagnotics(
     write_notification(writer, "textDocument/publishDiagnostics", params)
 }
 
-fn _dbg_print_ast(ast: &mojom_parser::MojomFile) {
-    for stmt in &ast.stmts {
-        match stmt {
-            mojom_parser::Statement::Interface(ref intr) => {
-                let (line, col) = intr.name.start_pos().line_col();
-                eprintln!("{}:{}: name: {}", line, col, intr.name.as_str());
-            }
-            _ => (),
-        };
-    }
-}
-
 fn convert_error_position(line_col: &mojom_parser::LineColLocation) -> lsp_types::Range {
     let (start, end) = match line_col {
         mojom_parser::LineColLocation::Pos((line, col)) => {
@@ -225,11 +270,13 @@ fn _check_syntax(
     writer: &mut impl Write,
     ctx: &mut ServerContext,
     uri: lsp_types::Url,
-    input: &str,
 ) -> Result<()> {
+    let input = &ctx.text;
     match mojom_parser::parse(input) {
         Ok(ast) => {
-            _dbg_print_ast(&ast);
+            let defs = Definitions::new(uri.clone(), &ast);
+            eprintln!("{:#?}", defs);
+            ctx.defs = Some(defs);
             let params = lsp_types::PublishDiagnosticsParams {
                 uri: uri,
                 diagnostics: vec![],
@@ -274,7 +321,8 @@ fn did_open_text_document(
     params: lsp_types::DidOpenTextDocumentParams,
 ) -> Result<()> {
     let uri = params.text_document.uri.clone();
-    _check_syntax(writer, ctx, uri, &params.text_document.text)
+    ctx.text = params.text_document.text;
+    _check_syntax(writer, ctx, uri)
 }
 
 fn did_change_text_document(
@@ -288,8 +336,9 @@ fn did_change_text_document(
         .iter()
         .map(|i| i.text.to_owned())
         .collect::<Vec<_>>();
-    let res = content.join("");
-    _check_syntax(writer, ctx, uri, &res)
+    let text = content.join("");
+    ctx.text = text;
+    _check_syntax(writer, ctx, uri)
 }
 
 // Initialization
