@@ -169,18 +169,25 @@ fn _get_offset_from_position(text: &str, pos: lsp_types::Position) -> usize {
     offset + pos_col
 }
 
-fn get_token(text: &str, pos: lsp_types::Position) -> &str {
+#[inline(always)]
+fn is_identifier_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_' || ch == '.'
+}
+
+fn get_identifier(text: &str, pos: lsp_types::Position) -> &str {
+    // TODO: The current implementation isn't accurate.
+
     let offset = _get_offset_from_position(text, pos);
     let mut s = offset;
     for ch in text[..offset].chars().rev() {
-        if !ch.is_ascii_alphanumeric() && ch != '_' {
+        if !is_identifier_char(ch) {
             break;
         }
         s -= 1;
     }
     let mut e = offset;
     for ch in text[offset..].chars() {
-        if !ch.is_ascii_alphanumeric() && ch != '_' {
+        if !is_identifier_char(ch) {
             break;
         }
         e += 1;
@@ -195,8 +202,8 @@ fn goto_definition_request(
 ) -> RequestResult {
     match &ctx.ast {
         Some(ref ast) => {
-            let name = get_token(&ast.text, params.position);
-            let loc = definition::find_definition(name, &ast);
+            let ident = get_identifier(&ast.text, params.position);
+            let loc = definition::find_definition(ident, &ast);
             match loc {
                 Some(loc) => {
                     let loc = serde_json::to_value(loc).unwrap();
