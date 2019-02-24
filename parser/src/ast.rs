@@ -394,7 +394,9 @@ fn into_mojom_file(pairs: Pairs) -> MojomFile {
     MojomFile { stmts: stmts }
 }
 
-pub fn parse(input: &str) -> Result<MojomFile, Error<Rule>> {
+pub type ParseError = Error<Rule>;
+
+pub fn parse(input: &str) -> Result<MojomFile, ParseError> {
     let parsed = MojomParser::parse(Rule::mojom_file, &input)?
         .next()
         .unwrap()
@@ -403,32 +405,8 @@ pub fn parse(input: &str) -> Result<MojomFile, Error<Rule>> {
     Ok(mojom)
 }
 
-#[derive(Debug)]
-pub struct MojomAst {
-    pub text: String,
-    pub mojom: MojomFile,
-}
-
-impl MojomAst {
-    pub fn new<S: Into<String>>(text: S) -> Result<MojomAst, Error<Rule>> {
-        let text = text.into();
-        let mojom = parse(&text)?;
-        Ok(MojomAst {
-            text: text,
-            mojom: mojom,
-        })
-    }
-
-    pub fn text(&self, field: &Range) -> &str {
-        // Can panic.
-        &self.text[field.start..field.end]
-    }
-
-    pub fn line_col(&self, offset: usize) -> (usize, usize) {
-        // Can panic.
-        let pos = Position::new(&self.text, offset).unwrap();
-        pos.line_col()
-    }
+pub fn line_col(text: &str, offset: usize) -> Option<(usize, usize)> {
+    Position::new(text, offset).map(|p| p.line_col())
 }
 
 #[cfg(test)]

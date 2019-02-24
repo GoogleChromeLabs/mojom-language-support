@@ -2,15 +2,47 @@ use std::io::{self, BufRead, BufReader, BufWriter, Write};
 
 use serde_json::Value;
 
-use mojom_parser::MojomAst;
+use mojom_parser::{self, parse, MojomFile, ParseError};
 
 use crate::protocol::{
     read_message, write_error_response, write_notification, write_success_response,
     write_success_result, ErrorCodes, Message, NotificationMessage, RequestMessage, ResponseError,
 };
 
-use crate::definition::Definitions;
+use crate::definition;
 use crate::{Error, Result};
+
+#[derive(Debug)]
+pub struct MojomAst {
+    pub uri: lsp_types::Url,
+    pub text: String,
+    pub mojom: MojomFile,
+}
+
+impl MojomAst {
+    pub fn new<S: Into<String>>(
+        uri: lsp_types::Url,
+        text: S,
+    ) -> std::result::Result<MojomAst, ParseError> {
+        let text = text.into();
+        let mojom = parse(&text)?;
+        Ok(MojomAst {
+            uri: uri,
+            text: text,
+            mojom: mojom,
+        })
+    }
+
+    pub fn text(&self, field: &mojom_parser::Range) -> &str {
+        // Can panic.
+        &self.text[field.start..field.end]
+    }
+
+    pub fn line_col(&self, offset: usize) -> (usize, usize) {
+        // Can panic.
+        mojom_parser::line_col(&self.text, offset).unwrap()
+    }
+}
 
 #[derive(PartialEq)]
 enum State {
@@ -25,8 +57,6 @@ struct ServerContext {
     // Contains the current document text and ast. None when the text is an
     // invalid mojom.
     ast: Option<MojomAst>,
-    // Definitions in the current document. Tentative.
-    defs: Option<Definitions>,
     // Set when `exit` notification is received.
     exit_code: Option<i32>,
 }
@@ -37,7 +67,6 @@ impl ServerContext {
             state: State::Initialized,
             has_error: false,
             ast: None,
-            defs: None,
             exit_code: None,
         }
     }
@@ -160,29 +189,21 @@ fn _get_token(text: &str, pos: lsp_types::Position) -> &str {
 }
 
 fn goto_definition_request(
-    writer: &mut Write,
+    _writer: &mut Write,
     ctx: &mut ServerContext,
     params: lsp_types::TextDocumentPositionParams,
 ) -> RequestResult {
-    match &ctx.defs {
-        Some(ref defs) => {
-            // ast should exist when defs exists.
-            let ast = ctx.ast.as_ref().unwrap();
-            let pos = params.position;
-            // TODO: Use AST to get token on the `pos`.
-            let name = _get_token(&ast.text, pos);
-            find_definition(writer, name, defs)
-        }
-        None => Ok(Value::Null),
-    }
-}
-
-fn find_definition(_writer: &mut Write, name: &str, defs: &Definitions) -> RequestResult {
-    match defs.find(name) {
-        Some(loc) => {
-            // TODO: Don't use unwrap().
-            let loc = serde_json::to_value(loc).unwrap();
-            Ok(loc)
+    match &ctx.ast {
+        Some(ref ast) => {
+            // TODO: Use AST to ge token on the position.
+            let name = _get_token(&ast.text, params.position);
+            match definition::find_definition(name, ast.uri.clone(), &ast) {
+                Some(loc) => {
+                    let loc = serde_json::to_value(loc).unwrap();
+                    Ok(loc)
+                }
+                None => Ok(Value::Null),
+            }
         }
         None => Ok(Value::Null),
     }
@@ -277,13 +298,9 @@ fn _check_syntax(
     text: String,
     uri: lsp_types::Url,
 ) -> Result<()> {
-    // TODO: Avoid cloning.
-    match mojom_parser::MojomAst::new(text) {
+    match MojomAst::new(uri.clone(), text) {
         Ok(ast) => {
-            let defs = Definitions::new(uri.clone(), &ast);
-            eprintln!("{:#?}", defs);
             ctx.ast = Some(ast);
-            ctx.defs = Some(defs);
             let params = lsp_types::PublishDiagnosticsParams {
                 uri: uri,
                 diagnostics: vec![],
@@ -307,7 +324,6 @@ fn _check_syntax(
             };
             publish_diagnotics(writer, params)?;
             ctx.ast = None;
-            ctx.defs = None;
             ctx.has_error = true;
         }
     }
