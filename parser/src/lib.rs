@@ -6,5 +6,7 @@ pub use pest::error::LineColLocation;
 
 mod ast;
 mod parser;
+mod visitor;
 
 pub use ast::*;
+pub use visitor::*;
