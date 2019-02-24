@@ -1,6 +1,6 @@
-use lsp_types::{Location, Position, Range, Url};
+use lsp_types::{Location, Position, Range};
 
-use mojom_parser::Statement;
+use mojom_parser::{Element, Visitor};
 
 use crate::server::MojomAst;
 
@@ -12,38 +12,55 @@ fn create_lsp_range(ast: &MojomAst, field: &mojom_parser::Range) -> Range {
     Range::new(start, end)
 }
 
-pub fn find_definition(name: &str, uri: Url, ast: &MojomAst) -> Option<Location> {
-    macro_rules! match_field {
-        ($field:expr) => {{
-            let field_name = ast.text(&$field);
-            if field_name != name {
-                continue;
-            }
-            let range = create_lsp_range(ast, &$field);
-            return Some(Location::new(uri, range));
-        }};
-    }
+struct DefinitionVisitor<'a> {
+    ast: &'a MojomAst,
+    name: &'a str,
+    found: Option<Location>,
+}
 
-    // Only toplevel definitions for now.
-    for stmt in &ast.mojom.stmts {
-        match stmt {
-            Statement::Interface(ref stmt) => {
-                match_field!(stmt.name);
-            }
-            Statement::Struct(ref stmt) => {
-                match_field!(stmt.name);
-            }
-            Statement::Union(ref stmt) => {
-                match_field!(stmt.name);
-            }
-            Statement::Enum(ref stmt) => {
-                match_field!(stmt.name);
-            }
-            Statement::Const(ref stmt) => {
-                match_field!(stmt.name);
-            }
-            _ => (),
+impl<'a> DefinitionVisitor<'a> {
+    fn match_field(&mut self, field: &mojom_parser::Range) {
+        assert!(self.found.is_none());
+        let field_name = self.ast.text(field);
+        if field_name == self.name {
+            let range = create_lsp_range(self.ast, field);
+            self.found = Some(Location::new(self.ast.uri.clone(), range));
         }
     }
-    None
+}
+
+impl<'a> Visitor for DefinitionVisitor<'a> {
+    fn is_done(&self) -> bool {
+        self.found.is_some()
+    }
+
+    fn visit_interface(&mut self, elem: &mojom_parser::Interface) {
+        self.match_field(&elem.name);
+    }
+
+    fn visit_struct(&mut self, elem: &mojom_parser::Struct) {
+        self.match_field(&elem.name);
+    }
+
+    fn visit_union(&mut self, elem: &mojom_parser::Union) {
+        self.match_field(&elem.name);
+    }
+
+    fn visit_enum(&mut self, elem: &mojom_parser::Enum) {
+        self.match_field(&elem.name);
+    }
+
+    fn visit_const(&mut self, elem: &mojom_parser::Const) {
+        self.match_field(&elem.name);
+    }
+}
+
+pub fn find_definition(name: &str, ast: &MojomAst) -> Option<Location> {
+    let mut v = DefinitionVisitor {
+        ast: ast,
+        name: name,
+        found: None,
+    };
+    ast.mojom.accept(&mut v);
+    v.found
 }

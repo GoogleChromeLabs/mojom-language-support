@@ -169,7 +169,7 @@ fn _get_offset_from_position(text: &str, pos: lsp_types::Position) -> usize {
     offset + pos_col
 }
 
-fn _get_token(text: &str, pos: lsp_types::Position) -> &str {
+fn get_token(text: &str, pos: lsp_types::Position) -> &str {
     let offset = _get_offset_from_position(text, pos);
     let mut s = offset;
     for ch in text[..offset].chars().rev() {
@@ -195,9 +195,9 @@ fn goto_definition_request(
 ) -> RequestResult {
     match &ctx.ast {
         Some(ref ast) => {
-            // TODO: Use AST to ge token on the position.
-            let name = _get_token(&ast.text, params.position);
-            match definition::find_definition(name, ast.uri.clone(), &ast) {
+            let name = get_token(&ast.text, params.position);
+            let loc = definition::find_definition(name, &ast);
+            match loc {
                 Some(loc) => {
                     let loc = serde_json::to_value(loc).unwrap();
                     Ok(loc)

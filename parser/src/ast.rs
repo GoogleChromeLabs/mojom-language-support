@@ -409,6 +409,44 @@ pub fn line_col(text: &str, offset: usize) -> Option<(usize, usize)> {
     Position::new(text, offset).map(|p| p.line_col())
 }
 
+pub trait Visitor {
+    fn is_done(&self) -> bool {
+        false
+    }
+
+    fn visit_mojom(&mut self, _: &MojomFile) {}
+    fn visit_module(&mut self, _: &Module) {}
+    fn visit_import(&mut self, _: &Import) {}
+    fn visit_interface(&mut self, _: &Interface) {}
+    fn visit_struct(&mut self, _: &Struct) {}
+    fn visit_union(&mut self, _: &Union) {}
+    fn visit_enum(&mut self, _: &Enum) {}
+    fn visit_const(&mut self, _: &Const) {}
+}
+
+pub trait Element {
+    fn accept<V: Visitor>(&self, visitor: &mut V);
+}
+
+impl Element for MojomFile {
+    fn accept<V: Visitor>(&self, visitor: &mut V) {
+        for stmt in &self.stmts {
+            match stmt {
+                Statement::Module(ref stmt) => visitor.visit_module(stmt),
+                Statement::Import(ref stmt) => visitor.visit_import(stmt),
+                Statement::Interface(ref stmt) => visitor.visit_interface(stmt),
+                Statement::Struct(ref stmt) => visitor.visit_struct(stmt),
+                Statement::Union(ref stmt) => visitor.visit_union(stmt),
+                Statement::Enum(ref stmt) => visitor.visit_enum(stmt),
+                Statement::Const(ref stmt) => visitor.visit_const(stmt),
+            }
+            if visitor.is_done() {
+                break;
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
