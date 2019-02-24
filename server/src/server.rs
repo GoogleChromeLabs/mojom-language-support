@@ -2,6 +2,8 @@ use std::io::{self, BufRead, BufReader, BufWriter, Write};
 
 use serde_json::Value;
 
+use mojom_parser::MojomAst;
+
 use crate::protocol::{
     read_message, write_error_response, write_notification, write_success_response,
     write_success_result, ErrorCodes, Message, NotificationMessage, RequestMessage, ResponseError,
@@ -20,8 +22,9 @@ struct ServerContext {
     state: State,
     // True when the previous text document has errors.
     has_error: bool,
-    // Contains the current document text.
-    text: String,
+    // Contains the current document text and ast. None when the text is an
+    // invalid mojom.
+    ast: Option<MojomAst>,
     // Definitions in the current document. Tentative.
     defs: Option<Definitions>,
     // Set when `exit` notification is received.
@@ -33,7 +36,7 @@ impl ServerContext {
         ServerContext {
             state: State::Initialized,
             has_error: false,
-            text: String::new(),
+            ast: None,
             defs: None,
             exit_code: None,
         }
@@ -163,9 +166,11 @@ fn goto_definition_request(
 ) -> RequestResult {
     match &ctx.defs {
         Some(ref defs) => {
+            // ast should exist when defs exists.
+            let ast = ctx.ast.as_ref().unwrap();
             let pos = params.position;
             // TODO: Use AST to get token on the `pos`.
-            let name = _get_token(&ctx.text, pos);
+            let name = _get_token(&ast.text, pos);
             find_definition(writer, name, defs)
         }
         None => Ok(Value::Null),
@@ -269,13 +274,15 @@ fn convert_error_position(line_col: &mojom_parser::LineColLocation) -> lsp_types
 fn _check_syntax(
     writer: &mut impl Write,
     ctx: &mut ServerContext,
+    text: String,
     uri: lsp_types::Url,
 ) -> Result<()> {
-    let input = &ctx.text;
-    match mojom_parser::parse(input) {
+    // TODO: Avoid cloning.
+    match mojom_parser::MojomAst::new(text) {
         Ok(ast) => {
             let defs = Definitions::new(uri.clone(), &ast);
             eprintln!("{:#?}", defs);
+            ctx.ast = Some(ast);
             ctx.defs = Some(defs);
             let params = lsp_types::PublishDiagnosticsParams {
                 uri: uri,
@@ -299,6 +306,8 @@ fn _check_syntax(
                 diagnostics: vec![diagnostic],
             };
             publish_diagnotics(writer, params)?;
+            ctx.ast = None;
+            ctx.defs = None;
             ctx.has_error = true;
         }
     }
@@ -321,8 +330,7 @@ fn did_open_text_document(
     params: lsp_types::DidOpenTextDocumentParams,
 ) -> Result<()> {
     let uri = params.text_document.uri.clone();
-    ctx.text = params.text_document.text;
-    _check_syntax(writer, ctx, uri)
+    _check_syntax(writer, ctx, params.text_document.text, uri)
 }
 
 fn did_change_text_document(
@@ -337,8 +345,7 @@ fn did_change_text_document(
         .map(|i| i.text.to_owned())
         .collect::<Vec<_>>();
     let text = content.join("");
-    ctx.text = text;
-    _check_syntax(writer, ctx, uri)
+    _check_syntax(writer, ctx, text, uri)
 }
 
 // Initialization

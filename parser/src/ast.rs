@@ -1,15 +1,27 @@
-use pest::Parser;
+use pest::{Parser, Position, Span};
 
-use crate::{Error, Span};
-
-#[derive(Parser)]
-#[grammar = "mojom.pest"]
-struct MojomParser;
+use crate::parser::{MojomParser, Rule};
+use crate::Error;
 
 type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
 
+#[derive(Debug)]
+pub struct Range {
+    pub start: usize,
+    pub end: usize,
+}
+
+impl<'a> From<Span<'a>> for Range {
+    fn from(span: Span<'a>) -> Range {
+        Range {
+            start: span.start(),
+            end: span.end(),
+        }
+    }
+}
+
 // Skips attribute list if exists. This is tentative.
-fn _skip_attribute_list(pairs: &mut Pairs) {
+fn skip_attribute_list(pairs: &mut Pairs) {
     match pairs.peek().unwrap().as_rule() {
         Rule::attribute_section => {
             pairs.next();
@@ -25,43 +37,47 @@ fn consume_semicolon(pairs: &mut Pairs) {
     };
 }
 
-#[derive(Debug)]
-pub struct Module<'a> {
-    pub name: Span<'a>,
+fn consume_as_range(pairs: &mut Pairs) -> Range {
+    pairs.next().unwrap().as_span().into()
 }
 
-fn into_module<'a>(mut pairs: Pairs<'a>) -> Module<'a> {
-    _skip_attribute_list(&mut pairs);
-    let name = pairs.next().unwrap().as_span();
+#[derive(Debug)]
+pub struct Module {
+    pub name: Range,
+}
+
+fn into_module(mut pairs: Pairs) -> Module {
+    skip_attribute_list(&mut pairs);
+    let name = consume_as_range(&mut pairs);
     consume_semicolon(&mut pairs);
     Module { name: name }
 }
 
 #[derive(Debug)]
-pub struct Import<'a> {
-    pub path: Span<'a>,
+pub struct Import {
+    pub path: Range,
 }
 
-fn into_import<'a>(mut pairs: Pairs<'a>) -> Import<'a> {
-    _skip_attribute_list(&mut pairs);
-    let path = pairs.next().unwrap().as_span();
+fn into_import(mut pairs: Pairs) -> Import {
+    skip_attribute_list(&mut pairs);
+    let path = consume_as_range(&mut pairs);
     consume_semicolon(&mut pairs);
     Import { path: path }
 }
 
 #[derive(Debug)]
-pub struct Const<'a> {
-    pub typ: Span<'a>,
-    pub name: Span<'a>,
-    pub value: Span<'a>,
+pub struct Const {
+    pub typ: Range,
+    pub name: Range,
+    pub value: Range,
 }
 
-fn into_const<'a>(mut pairs: Pairs<'a>) -> Const<'a> {
-    _skip_attribute_list(&mut pairs);
+fn into_const(mut pairs: Pairs) -> Const {
+    skip_attribute_list(&mut pairs);
     let pair = pairs.next().unwrap();
-    let typ = pair.as_span();
-    let name = pairs.next().unwrap().as_span();
-    let value = pairs.next().unwrap().as_span();
+    let typ = pair.as_span().into();
+    let name = consume_as_range(&mut pairs);
+    let value = consume_as_range(&mut pairs);
     consume_semicolon(&mut pairs);
     Const {
         typ: typ,
@@ -71,15 +87,15 @@ fn into_const<'a>(mut pairs: Pairs<'a>) -> Const<'a> {
 }
 
 #[derive(Debug)]
-pub struct EnumValue<'a> {
-    pub name: Span<'a>,
-    pub value: Option<Span<'a>>,
+pub struct EnumValue {
+    pub name: Range,
+    pub value: Option<Range>,
 }
 
-fn into_enum_value<'a>(mut pairs: Pairs<'a>) -> EnumValue<'a> {
-    _skip_attribute_list(&mut pairs);
-    let name = pairs.next().unwrap().as_span();
-    let value = pairs.next().map(|value| value.as_span());
+fn into_enum_value(mut pairs: Pairs) -> EnumValue {
+    skip_attribute_list(&mut pairs);
+    let name = consume_as_range(&mut pairs);
+    let value = pairs.next().map(|value| value.as_span().into());
     EnumValue {
         name: name,
         value: value,
@@ -87,14 +103,14 @@ fn into_enum_value<'a>(mut pairs: Pairs<'a>) -> EnumValue<'a> {
 }
 
 #[derive(Debug)]
-pub struct Enum<'a> {
-    pub name: Span<'a>,
-    pub values: Vec<EnumValue<'a>>,
+pub struct Enum {
+    pub name: Range,
+    pub values: Vec<EnumValue>,
 }
 
-fn into_enum<'a>(mut pairs: Pairs<'a>) -> Enum<'a> {
-    _skip_attribute_list(&mut pairs);
-    let name = pairs.next().unwrap().as_span();
+fn into_enum(mut pairs: Pairs) -> Enum {
+    skip_attribute_list(&mut pairs);
+    let name = consume_as_range(&mut pairs);
     let mut values = Vec::new();
     for item in pairs {
         match item.as_rule() {
@@ -114,17 +130,17 @@ fn into_enum<'a>(mut pairs: Pairs<'a>) -> Enum<'a> {
 }
 
 #[derive(Debug)]
-pub struct StructField<'a> {
-    typ: Span<'a>,
-    name: Span<'a>,
-    ordinal: Option<Span<'a>>,
-    default: Option<Span<'a>>,
+pub struct StructField {
+    typ: Range,
+    name: Range,
+    ordinal: Option<Range>,
+    default: Option<Range>,
 }
 
-fn into_struct_field<'a>(mut pairs: Pairs<'a>) -> StructField<'a> {
-    _skip_attribute_list(&mut pairs);
-    let typ = pairs.next().unwrap().as_span();
-    let name = pairs.next().unwrap().as_span();
+fn into_struct_field(mut pairs: Pairs) -> StructField {
+    skip_attribute_list(&mut pairs);
+    let typ = consume_as_range(&mut pairs);
+    let name = consume_as_range(&mut pairs);
     let mut res = StructField {
         typ: typ,
         name: name,
@@ -133,8 +149,8 @@ fn into_struct_field<'a>(mut pairs: Pairs<'a>) -> StructField<'a> {
     };
     for item in pairs {
         match item.as_rule() {
-            Rule::ordinal_value => res.ordinal = Some(item.as_span()),
-            Rule::default => res.default = Some(item.as_span()),
+            Rule::ordinal_value => res.ordinal = Some(item.as_span().into()),
+            Rule::default => res.default = Some(item.as_span().into()),
             Rule::t_semicolon => break,
             _ => unreachable!(),
         }
@@ -143,21 +159,21 @@ fn into_struct_field<'a>(mut pairs: Pairs<'a>) -> StructField<'a> {
 }
 
 #[derive(Debug)]
-pub enum StructBody<'a> {
-    Const(Const<'a>),
-    Enum(Enum<'a>),
-    Field(StructField<'a>),
+pub enum StructBody {
+    Const(Const),
+    Enum(Enum),
+    Field(StructField),
 }
 
 #[derive(Debug)]
-pub struct Struct<'a> {
-    pub name: Span<'a>,
-    pub members: Vec<StructBody<'a>>,
+pub struct Struct {
+    pub name: Range,
+    pub members: Vec<StructBody>,
 }
 
-fn into_struct<'a>(mut pairs: Pairs<'a>) -> Struct<'a> {
-    _skip_attribute_list(&mut pairs);
-    let name = pairs.next().unwrap().as_span();
+fn into_struct(mut pairs: Pairs) -> Struct {
+    skip_attribute_list(&mut pairs);
+    let name = consume_as_range(&mut pairs);
     let body = pairs.next();
     let members = match body {
         Some(pairs) => {
@@ -184,20 +200,20 @@ fn into_struct<'a>(mut pairs: Pairs<'a>) -> Struct<'a> {
 }
 
 #[derive(Debug)]
-pub struct UnionField<'a> {
-    pub typ: Span<'a>,
-    pub name: Span<'a>,
-    pub ordinal: Option<Span<'a>>,
+pub struct UnionField {
+    pub typ: Range,
+    pub name: Range,
+    pub ordinal: Option<Range>,
 }
 
-fn into_union_field<'a>(mut pairs: Pairs<'a>) -> UnionField<'a> {
-    _skip_attribute_list(&mut pairs);
-    let typ = pairs.next().unwrap().as_span();
-    let name = pairs.next().unwrap().as_span();
+fn into_union_field(mut pairs: Pairs) -> UnionField {
+    skip_attribute_list(&mut pairs);
+    let typ = consume_as_range(&mut pairs);
+    let name = consume_as_range(&mut pairs);
     let mut ordinal = None;
     for item in pairs {
         match item.as_rule() {
-            Rule::ordinal_value => ordinal = Some(item.as_span()),
+            Rule::ordinal_value => ordinal = Some(item.as_span().into()),
             Rule::t_semicolon => break,
             _ => unreachable!(),
         }
@@ -210,14 +226,14 @@ fn into_union_field<'a>(mut pairs: Pairs<'a>) -> UnionField<'a> {
 }
 
 #[derive(Debug)]
-pub struct Union<'a> {
-    pub name: Span<'a>,
-    pub fields: Vec<UnionField<'a>>,
+pub struct Union {
+    pub name: Range,
+    pub fields: Vec<UnionField>,
 }
 
-fn into_union<'a>(mut pairs: Pairs<'a>) -> Union<'a> {
-    _skip_attribute_list(&mut pairs);
-    let name = pairs.next().unwrap().as_span();
+fn into_union(mut pairs: Pairs) -> Union {
+    skip_attribute_list(&mut pairs);
+    let name = consume_as_range(&mut pairs);
     let mut fields = Vec::new();
     for item in pairs {
         let item = match item.as_rule() {
@@ -234,16 +250,16 @@ fn into_union<'a>(mut pairs: Pairs<'a>) -> Union<'a> {
 }
 
 #[derive(Debug)]
-pub struct Parameter<'a> {
-    pub typ: Span<'a>,
-    pub name: Span<'a>,
-    pub ordinal: Option<Span<'a>>,
+pub struct Parameter {
+    pub typ: Range,
+    pub name: Range,
+    pub ordinal: Option<Range>,
 }
 
-fn into_parameter<'a>(mut pairs: Pairs<'a>) -> Parameter<'a> {
-    let typ = pairs.next().unwrap().as_span();
-    let name = pairs.next().unwrap().as_span();
-    let ordinal = pairs.next().map(|ord| ord.as_span());
+fn into_parameter(mut pairs: Pairs) -> Parameter {
+    let typ = consume_as_range(&mut pairs);
+    let name = consume_as_range(&mut pairs);
+    let ordinal = pairs.next().map(|ord| ord.as_span().into());
     Parameter {
         typ: typ,
         name: name,
@@ -251,35 +267,35 @@ fn into_parameter<'a>(mut pairs: Pairs<'a>) -> Parameter<'a> {
     }
 }
 
-fn _parameter_list<'a>(pairs: Pairs<'a>) -> Vec<Parameter<'a>> {
+fn _parameter_list(pairs: Pairs) -> Vec<Parameter> {
     pairs
         .map(|param| into_parameter(param.into_inner()))
         .collect::<Vec<_>>()
 }
 
 #[derive(Debug)]
-pub struct Response<'a> {
-    pub params: Vec<Parameter<'a>>,
+pub struct Response {
+    pub params: Vec<Parameter>,
 }
 
-fn into_response<'a>(mut pairs: Pairs<'a>) -> Response<'a> {
+fn into_response(mut pairs: Pairs) -> Response {
     let params = _parameter_list(pairs.next().unwrap().into_inner());
     Response { params: params }
 }
 
 #[derive(Debug)]
-pub struct Method<'a> {
-    pub name: Span<'a>,
-    pub ordinal: Option<Span<'a>>,
-    pub params: Vec<Parameter<'a>>,
-    pub response: Option<Response<'a>>,
+pub struct Method {
+    pub name: Range,
+    pub ordinal: Option<Range>,
+    pub params: Vec<Parameter>,
+    pub response: Option<Response>,
 }
 
-fn into_method<'a>(mut pairs: Pairs<'a>) -> Method<'a> {
-    _skip_attribute_list(&mut pairs);
-    let name = pairs.next().unwrap().as_span();
+fn into_method(mut pairs: Pairs) -> Method {
+    skip_attribute_list(&mut pairs);
+    let name = consume_as_range(&mut pairs);
     let ordinal = match pairs.peek().unwrap().as_rule() {
-        Rule::ordinal_value => pairs.next().map(|ord| ord.as_span()),
+        Rule::ordinal_value => pairs.next().map(|ord| ord.as_span().into()),
         _ => None,
     };
     let params = _parameter_list(pairs.next().unwrap().into_inner());
@@ -293,13 +309,13 @@ fn into_method<'a>(mut pairs: Pairs<'a>) -> Method<'a> {
 }
 
 #[derive(Debug)]
-pub enum InterfaceMember<'a> {
-    Const(Const<'a>),
-    Enum(Enum<'a>),
-    Method(Method<'a>),
+pub enum InterfaceMember {
+    Const(Const),
+    Enum(Enum),
+    Method(Method),
 }
 
-fn into_interface_member<'a>(mut pairs: Pairs<'a>) -> InterfaceMember<'a> {
+fn into_interface_member(mut pairs: Pairs) -> InterfaceMember {
     let member = pairs.next().unwrap();
     match member.as_rule() {
         Rule::const_stmt => InterfaceMember::Const(into_const(member.into_inner())),
@@ -310,14 +326,14 @@ fn into_interface_member<'a>(mut pairs: Pairs<'a>) -> InterfaceMember<'a> {
 }
 
 #[derive(Debug)]
-pub struct Interface<'a> {
-    pub name: Span<'a>,
-    pub members: Vec<InterfaceMember<'a>>,
+pub struct Interface {
+    pub name: Range,
+    pub members: Vec<InterfaceMember>,
 }
 
-fn into_interface<'a>(mut pairs: Pairs<'a>) -> Interface<'a> {
-    _skip_attribute_list(&mut pairs);
-    let name = pairs.next().unwrap().as_span();
+fn into_interface(mut pairs: Pairs) -> Interface {
+    skip_attribute_list(&mut pairs);
+    let name = consume_as_range(&mut pairs);
     let mut members = Vec::new();
     for item in pairs {
         match item.as_rule() {
@@ -336,17 +352,17 @@ fn into_interface<'a>(mut pairs: Pairs<'a>) -> Interface<'a> {
 }
 
 #[derive(Debug)]
-pub enum Statement<'a> {
-    Module(Module<'a>),
-    Import(Import<'a>),
-    Interface(Interface<'a>),
-    Struct(Struct<'a>),
-    Union(Union<'a>),
-    Enum(Enum<'a>),
-    Const(Const<'a>),
+pub enum Statement {
+    Module(Module),
+    Import(Import),
+    Interface(Interface),
+    Struct(Struct),
+    Union(Union),
+    Enum(Enum),
+    Const(Const),
 }
 
-fn into_statement<'a>(mut pairs: Pairs<'a>) -> Statement<'a> {
+fn into_statement(mut pairs: Pairs) -> Statement {
     let stmt = pairs.next().unwrap();
     match stmt.as_rule() {
         Rule::module_stmt => Statement::Module(into_module(stmt.into_inner())),
@@ -361,11 +377,11 @@ fn into_statement<'a>(mut pairs: Pairs<'a>) -> Statement<'a> {
 }
 
 #[derive(Debug)]
-pub struct MojomFile<'a> {
-    pub stmts: Vec<Statement<'a>>,
+pub struct MojomFile {
+    pub stmts: Vec<Statement>,
 }
 
-fn into_mojom_file<'a>(pairs: Pairs<'a>) -> MojomFile<'a> {
+fn into_mojom_file(pairs: Pairs) -> MojomFile {
     let mut stmts = Vec::new();
     for stmt in pairs {
         let stmt = match stmt.as_rule() {
@@ -378,7 +394,6 @@ fn into_mojom_file<'a>(pairs: Pairs<'a>) -> MojomFile<'a> {
     MojomFile { stmts: stmts }
 }
 
-/// Parses `input`.
 pub fn parse(input: &str) -> Result<MojomFile, Error<Rule>> {
     let parsed = MojomParser::parse(Rule::mojom_file, &input)?
         .next()
@@ -388,61 +403,40 @@ pub fn parse(input: &str) -> Result<MojomFile, Error<Rule>> {
     Ok(mojom)
 }
 
+#[derive(Debug)]
+pub struct MojomAst {
+    pub text: String,
+    pub mojom: MojomFile,
+}
+
+impl MojomAst {
+    pub fn new<S: Into<String>>(text: S) -> Result<MojomAst, Error<Rule>> {
+        let text = text.into();
+        let mojom = parse(&text)?;
+        Ok(MojomAst {
+            text: text,
+            mojom: mojom,
+        })
+    }
+
+    pub fn text(&self, field: &Range) -> &str {
+        // Can panic.
+        &self.text[field.start..field.end]
+    }
+
+    pub fn line_col(&self, offset: usize) -> (usize, usize) {
+        // Can panic.
+        let pos = Position::new(&self.text, offset).unwrap();
+        pos.line_col()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_parse() {
-        let input = r#"
-        module test.module;
-        import "a.b.c";
-        import "a.c.d";
-
-        enum MyEnum;
-        enum MyEnum2 { kFoo, kBar, kBaz };
-
-        const string kMyConst = "const_value";
-        const int32 kMyConst2 = -1;
-
-        struct MyStruct {};
-        struct MyStruct2 {
-            uint8 my_uint8_value;
-            float my_float_value = 0.1;
-        };
-
-        union MyUnion {
-            string str_field;
-            uint8 uint8_field;
-        };
-        union MyUnion2 {
-            MyInterface myinterface_field;
-            uint32 uint32_field;
-        };
-
-        // This is MyInterface
-        interface MyInterface {
-            MyMethod() => (/* empty */);
-        };
-
-        interface InterfaceA {};
-
-        // This is comment.
-        interface InterfaceB {};
-
-        [Attr]
-        interface InterfaceC {};
-
-        interface InterfaceD {
-            const string kMessage = "message";
-            enum SomeEnum { Foo, Bar, Baz, };
-            MethodA(string message) => ();
-            MethodB() => (int32 result);
-            [Attr2] MethodC(associated InterfaceA assoc) => (map<string, int8> result);
-        };
-        "#;
-        let res = parse(input).unwrap();
-        assert_eq!(16, res.stmts.len());
+    fn partial_text<'t>(text: &'t str, range: &Range) -> &'t str {
+        &text[range.start..range.end]
     }
 
     #[test]
@@ -569,7 +563,7 @@ mod tests {
             .next()
             .unwrap();
         let stmt = into_module(parsed.into_inner());
-        assert_eq!("my.mod", stmt.name.as_str());
+        assert_eq!("my.mod", partial_text(&input, &stmt.name));
     }
 
     #[test]
@@ -580,7 +574,7 @@ mod tests {
             .next()
             .unwrap();
         let stmt = into_import(parsed.into_inner());
-        assert_eq!(r#""my.mod""#, stmt.path.as_str());
+        assert_eq!(r#""my.mod""#, partial_text(&input, &stmt.path));
 
         let input = r#"[Attr] import "my.mod";"#;
         let parsed = MojomParser::parse(Rule::import_stmt, &input)
@@ -588,7 +582,7 @@ mod tests {
             .next()
             .unwrap();
         let stmt = into_import(parsed.into_inner());
-        assert_eq!(r#""my.mod""#, stmt.path.as_str());
+        assert_eq!(r#""my.mod""#, partial_text(&input, &stmt.path));
     }
 
     #[test]
@@ -599,9 +593,9 @@ mod tests {
             .next()
             .unwrap();
         let stmt = into_const(parsed.into_inner());
-        assert_eq!("uint32", stmt.typ.as_str());
-        assert_eq!("kTheAnswer", stmt.name.as_str());
-        assert_eq!("42", stmt.value.as_str());
+        assert_eq!("uint32", partial_text(&input, &stmt.typ));
+        assert_eq!("kTheAnswer", partial_text(&input, &stmt.name));
+        assert_eq!("42", partial_text(&input, &stmt.value));
     }
 
     #[test]
@@ -612,14 +606,17 @@ mod tests {
             .next()
             .unwrap();
         let stmt = into_enum(parsed.into_inner());
-        assert_eq!("MyEnum", stmt.name.as_str());
+        assert_eq!("MyEnum", partial_text(&input, &stmt.name));
         let values = &stmt.values;
         assert_eq!(3, values.len());
-        assert_eq!("kOne", values[0].name.as_str());
-        assert_eq!("kTwo", values[1].name.as_str());
-        assert_eq!("2", values[1].value.as_ref().unwrap().as_str());
-        assert_eq!("kThree", values[2].name.as_str());
-        assert_eq!("IdentValue", values[2].value.as_ref().unwrap().as_str());
+        assert_eq!("kOne", partial_text(&input, &values[0].name));
+        assert_eq!("kTwo", partial_text(&input, &values[1].name));
+        assert_eq!("2", partial_text(&input, values[1].value.as_ref().unwrap()));
+        assert_eq!("kThree", partial_text(&input, &values[2].name));
+        assert_eq!(
+            "IdentValue",
+            partial_text(&input, values[2].value.as_ref().unwrap())
+        );
 
         let input = "enum MyEnum {};";
         let parsed = MojomParser::parse(Rule::enum_stmt, &input)
@@ -627,7 +624,7 @@ mod tests {
             .next()
             .unwrap();
         let stmt = into_enum(parsed.into_inner());
-        assert_eq!("MyEnum", stmt.name.as_str());
+        assert_eq!("MyEnum", partial_text(&input, &stmt.name));
         assert_eq!(0, stmt.values.len());
 
         let input = "[Native] enum MyEnum;";
@@ -636,7 +633,7 @@ mod tests {
             .next()
             .unwrap();
         let stmt = into_enum(parsed.into_inner());
-        assert_eq!("MyEnum", stmt.name.as_str());
+        assert_eq!("MyEnum", partial_text(&input, &stmt.name));
         assert_eq!(0, stmt.values.len());
     }
 
@@ -648,17 +645,17 @@ mod tests {
             .next()
             .unwrap();
         let stmt = into_method(parsed.into_inner());
-        assert_eq!("MyMethod", stmt.name.as_str());
+        assert_eq!("MyMethod", partial_text(&input, &stmt.name));
         let params = &stmt.params;
         assert_eq!(2, params.len());
-        assert_eq!("string", params[0].typ.as_str());
-        assert_eq!("str_arg", params[0].name.as_str());
-        assert_eq!("int8", params[1].typ.as_str());
-        assert_eq!("int8_arg", params[1].name.as_str());
+        assert_eq!("string", partial_text(&input, &params[0].typ));
+        assert_eq!("str_arg", partial_text(&input, &params[0].name));
+        assert_eq!("int8", partial_text(&input, &params[1].typ));
+        assert_eq!("int8_arg", partial_text(&input, &params[1].name));
         let response = stmt.response.as_ref().unwrap();
         assert_eq!(1, response.params.len());
-        assert_eq!("uint32", response.params[0].typ.as_str());
-        assert_eq!("result", response.params[0].name.as_str());
+        assert_eq!("uint32", partial_text(&input, &response.params[0].typ));
+        assert_eq!("result", partial_text(&input, &response.params[0].name));
 
         let input = "MyMethod2();";
         let parsed = MojomParser::parse(Rule::method_stmt, &input)
@@ -666,7 +663,7 @@ mod tests {
             .next()
             .unwrap();
         let stmt = into_method(parsed.into_inner());
-        assert_eq!("MyMethod2", stmt.name.as_str());
+        assert_eq!("MyMethod2", partial_text(&input, &stmt.name));
         assert_eq!(0, stmt.params.len());
         assert!(stmt.response.is_none());
     }
@@ -684,7 +681,7 @@ mod tests {
             .next()
             .unwrap();
         let stmt = into_struct(parsed.into_inner());
-        assert_eq!("MyStruct", stmt.name.as_str());
+        assert_eq!("MyStruct", partial_text(&input, &stmt.name));
         let members = &stmt.members;
         assert_eq!(4, members.len());
 
@@ -692,25 +689,25 @@ mod tests {
             StructBody::Const(item) => item,
             _ => unreachable!(),
         };
-        assert_eq!("kInvalidId", item.name.as_str());
+        assert_eq!("kInvalidId", partial_text(&input, &item.name));
 
         let item = match &members[1] {
             StructBody::Field(item) => item,
             _ => unreachable!(),
         };
-        assert_eq!("my_id", item.name.as_str());
+        assert_eq!("my_id", partial_text(&input, &item.name));
 
         let item = match &members[2] {
             StructBody::Field(item) => item,
             _ => unreachable!(),
         };
-        assert_eq!("my_interface", item.name.as_str());
+        assert_eq!("my_interface", partial_text(&input, &item.name));
 
         let item = match &members[3] {
             StructBody::Field(item) => item,
             _ => unreachable!(),
         };
-        assert_eq!("my_float_value", item.name.as_str());
+        assert_eq!("my_float_value", partial_text(&input, &item.name));
 
         let input = "[Native] struct MyStruct;";
         let parsed = MojomParser::parse(Rule::struct_stmt, &input)
@@ -718,7 +715,7 @@ mod tests {
             .next()
             .unwrap();
         let stmt = into_struct(parsed.into_inner());
-        assert_eq!("MyStruct", stmt.name.as_str());
+        assert_eq!("MyStruct", partial_text(&input, &stmt.name));
         assert_eq!(0, stmt.members.len());
     }
 
@@ -733,7 +730,7 @@ mod tests {
             .next()
             .unwrap();
         let intr = into_interface(parsed.into_inner());
-        assert_eq!("MyInterface", intr.name.as_str());
+        assert_eq!("MyInterface", partial_text(&input, &intr.name));
         let members = &intr.members;
         assert_eq!(2, members.len());
 
@@ -741,13 +738,13 @@ mod tests {
             InterfaceMember::Method(member) => member,
             _ => unreachable!(),
         };
-        assert_eq!("MyMethod", member.name.as_str());
+        assert_eq!("MyMethod", partial_text(&input, &member.name));
 
         let member = match &members[1] {
             InterfaceMember::Enum(member) => member,
             _ => unreachable!(),
         };
-        assert_eq!("MyEnum", member.name.as_str());
+        assert_eq!("MyEnum", partial_text(&input, &member.name));
     }
 
     #[test]
@@ -762,11 +759,64 @@ mod tests {
             .next()
             .unwrap();
         let stmt = into_union(parsed.into_inner());
-        assert_eq!("MyUnion", stmt.name.as_str());
+        assert_eq!("MyUnion", partial_text(&input, &stmt.name));
         let fields = &stmt.fields;
         assert_eq!(3, fields.len());
-        assert_eq!("str_field", fields[0].name.as_str());
-        assert_eq!("pair_field", fields[1].name.as_str());
-        assert_eq!("int64_field", fields[2].name.as_str());
+        assert_eq!("str_field", partial_text(&input, &fields[0].name));
+        assert_eq!("pair_field", partial_text(&input, &fields[1].name));
+        assert_eq!("int64_field", partial_text(&input, &fields[2].name));
+    }
+
+    #[test]
+    fn test_parse() {
+        let input = r#"
+        module test.module;
+        import "a.b.c";
+        import "a.c.d";
+
+        enum MyEnum;
+        enum MyEnum2 { kFoo, kBar, kBaz };
+
+        const string kMyConst = "const_value";
+        const int32 kMyConst2 = -1;
+
+        struct MyStruct {};
+        struct MyStruct2 {
+            uint8 my_uint8_value;
+            float my_float_value = 0.1;
+        };
+
+        union MyUnion {
+            string str_field;
+            uint8 uint8_field;
+        };
+        union MyUnion2 {
+            MyInterface myinterface_field;
+            uint32 uint32_field;
+        };
+
+        // This is MyInterface
+        interface MyInterface {
+            MyMethod() => (/* empty */);
+        };
+
+        interface InterfaceA {};
+
+        // This is comment.
+        interface InterfaceB {};
+
+        [Attr]
+        interface InterfaceC {};
+
+        interface InterfaceD {
+            const string kMessage = "message";
+            enum SomeEnum { Foo, Bar, Baz, };
+            MethodA(string message) => ();
+            MethodB() => (int32 result);
+            [Attr2] MethodC(associated InterfaceA assoc) => (map<string, int8> result);
+        };
+        "#;
+        let res = parse(input).unwrap();
+        assert_eq!(16, res.stmts.len());
     }
 }

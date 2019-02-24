@@ -4,8 +4,7 @@ extern crate pest_derive;
 pub use pest::error::Error;
 pub use pest::error::LineColLocation;
 
-pub use pest::Span;
+mod ast;
+mod parser;
 
-mod mojom;
-
-pub use mojom::*;
+pub use ast::*;
