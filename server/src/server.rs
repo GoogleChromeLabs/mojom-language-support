@@ -1,4 +1,5 @@
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
+use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
@@ -52,6 +53,8 @@ enum State {
 
 struct ServerContext {
     state: State,
+    // Workspace root path.
+    root_path: std::path::PathBuf,
     // True when the previous text document has errors.
     has_error: bool,
     // Contains the current document text and ast. None when the text is an
@@ -62,9 +65,10 @@ struct ServerContext {
 }
 
 impl ServerContext {
-    fn new() -> ServerContext {
+    fn new(root_path: PathBuf) -> ServerContext {
         ServerContext {
             state: State::Initialized,
+            root_path: root_path,
             has_error: false,
             ast: None,
             exit_code: None,
@@ -131,7 +135,10 @@ fn handle_request(
         Shutdown::METHOD => shutdown_request(ctx),
         GotoDefinition::METHOD => get_request_params(msg.params)
             .and_then(|params| goto_definition_request(writer, ctx, params)),
-        _ => unimplemented!(),
+        _ => {
+            eprintln!("Received unimplemented request: {:?}", msg);
+            unimplemented!();
+        }
     };
     match res {
         Ok(res) => write_success_response(writer, id, res)?,
@@ -222,7 +229,8 @@ fn get_params<P: serde::de::DeserializeOwned>(params: Value) -> Result<P> {
     serde_json::from_value::<P>(params).map_err(|err| Error::ProtocolError(err.to_string()))
 }
 
-fn do_nothing() -> Result<()> {
+fn do_nothing(msg: &NotificationMessage) -> Result<()> {
+    eprintln!("Received `{}` but do nothing.", msg.method.as_str());
     Ok(())
 }
 
@@ -244,15 +252,12 @@ fn handle_notification(
             get_params(msg.params).and_then(|params| did_change_text_document(writer, ctx, params))
         }
         // Accept following notifications but do nothing.
-        DidChangeConfiguration::METHOD => do_nothing(),
-        WillSaveTextDocument::METHOD => do_nothing(),
-        DidSaveTextDocument::METHOD => do_nothing(),
-        // Intentionally crash for unsupported notifications.
+        DidChangeConfiguration::METHOD => do_nothing(&msg),
+        WillSaveTextDocument::METHOD => do_nothing(&msg),
+        DidSaveTextDocument::METHOD => do_nothing(&msg),
         _ => {
-            panic!(format!(
-                "Notification `{}` isn't supported yet",
-                msg.method.as_str()
-            ));
+            eprintln!("Received unimplemented notification: {:#?}", msg);
+            Ok(())
         }
     }
 }
@@ -334,7 +339,25 @@ fn _check_syntax(
             ctx.has_error = true;
         }
     }
+    // TODO: Tentative
+    if let Some(ast) = &ctx.ast {
+        check_imports(&ctx.root_path, ast);
+    }
     Ok(())
+}
+
+fn check_imports(root_path: &Path, ast: &MojomAst) {
+    for stmt in &ast.mojom.stmts {
+        match stmt {
+            mojom_parser::Statement::Import(stmt) => {
+                let path = ast.text(&stmt.path);
+                let path = root_path.join(&path[1..path.len() - 1]);
+                eprintln!("Imported path: {:?}", path);
+                // TODO: Implement.
+            }
+            _ => (),
+        }
+    }
 }
 
 fn exit_notification(ctx: &mut ServerContext) -> Result<()> {
@@ -406,14 +429,31 @@ fn initialize(
     Ok(params)
 }
 
+fn get_root_path(params: &lsp_types::InitializeParams) -> PathBuf {
+    if let Some(ref uri) = params.root_uri.as_ref() {
+        if uri.scheme() == "file" {
+            const FILE_SCHEME: &str = "file://";
+            let path = &uri.as_str()[FILE_SCHEME.len()..];
+            return PathBuf::from(path);
+        }
+    }
+    if let Some(ref path) = params.root_path.as_ref() {
+        return PathBuf::from(path);
+    }
+    PathBuf::new()
+}
+
 // Returns exit code.
 pub fn start() -> Result<i32> {
     let mut reader = BufReader::new(io::stdin());
     let mut writer = BufWriter::new(io::stdout());
 
-    let _params = initialize(&mut reader, &mut writer)?;
+    let params = initialize(&mut reader, &mut writer)?;
 
-    let mut ctx = ServerContext::new();
+    let root_path = get_root_path(&params);
+    eprintln!("root_path: {:?}", root_path);
+
+    let mut ctx = ServerContext::new(root_path);
 
     loop {
         eprintln!("Reading message...");
