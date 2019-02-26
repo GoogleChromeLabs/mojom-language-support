@@ -11,6 +11,7 @@ use crate::protocol::{
 };
 
 use crate::definition;
+use crate::import::parse_imported;
 use crate::{Error, Result};
 
 #[derive(Debug)]
@@ -354,6 +355,7 @@ fn check_imports(root_path: &Path, ast: &MojomAst) {
                 let path = root_path.join(&path[1..path.len() - 1]);
                 eprintln!("Imported path: {:?}", path);
                 // TODO: Implement.
+                let _ = parse_imported(&path);
             }
             _ => (),
         }

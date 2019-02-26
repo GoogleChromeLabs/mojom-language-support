@@ -19,6 +19,7 @@ impl From<std::io::Error> for Error {
 type Result<T> = std::result::Result<T, Error>;
 
 mod definition;
+mod import;
 mod protocol;
 mod server;
 
