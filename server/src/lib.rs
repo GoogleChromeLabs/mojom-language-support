@@ -20,6 +20,7 @@ type Result<T> = std::result::Result<T, Error>;
 
 mod definition;
 mod import;
+mod mojomast;
 mod protocol;
 mod server;
 

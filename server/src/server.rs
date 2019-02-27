@@ -1,9 +1,7 @@
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde_json::Value;
-
-use mojom_parser::{self, parse, MojomFile, ParseError};
 
 use crate::protocol::{
     read_message, write_error_response, write_notification, write_success_response,
@@ -11,40 +9,9 @@ use crate::protocol::{
 };
 
 use crate::definition;
-use crate::import::parse_imported;
+use crate::import::{check_imports, ImportedFiles};
+use crate::mojomast::MojomAst;
 use crate::{Error, Result};
-
-#[derive(Debug)]
-pub struct MojomAst {
-    pub uri: lsp_types::Url,
-    pub text: String,
-    pub mojom: MojomFile,
-}
-
-impl MojomAst {
-    pub fn new<S: Into<String>>(
-        uri: lsp_types::Url,
-        text: S,
-    ) -> std::result::Result<MojomAst, ParseError> {
-        let text = text.into();
-        let mojom = parse(&text)?;
-        Ok(MojomAst {
-            uri: uri,
-            text: text,
-            mojom: mojom,
-        })
-    }
-
-    pub fn text(&self, field: &mojom_parser::Range) -> &str {
-        // Can panic.
-        &self.text[field.start..field.end]
-    }
-
-    pub fn line_col(&self, offset: usize) -> (usize, usize) {
-        // Can panic.
-        mojom_parser::line_col(&self.text, offset).unwrap()
-    }
-}
 
 #[derive(PartialEq)]
 enum State {
@@ -61,6 +28,8 @@ struct ServerContext {
     // Contains the current document text and ast. None when the text is an
     // invalid mojom.
     ast: Option<MojomAst>,
+    // Parsed mojom files that are imported from the current document.
+    imported_files: Option<ImportedFiles>,
     // Set when `exit` notification is received.
     exit_code: Option<i32>,
 }
@@ -72,6 +41,7 @@ impl ServerContext {
             root_path: root_path,
             has_error: false,
             ast: None,
+            imported_files: None,
             exit_code: None,
         }
     }
@@ -203,24 +173,31 @@ fn get_identifier(text: &str, pos: lsp_types::Position) -> &str {
     &text[s..e]
 }
 
+fn find_definition_in_doc(ast: &MojomAst, ident: &str) -> Option<lsp_types::Location> {
+    definition::find_definition(ident, ast)
+}
+
+fn find_definition_in_imports(ctx: &ServerContext, ident: &str) -> Option<lsp_types::Location> {
+    ctx.imported_files
+        .as_ref()
+        .and_then(|ref imported_files| imported_files.find_definition(ident))
+}
+
 fn goto_definition_request(
     _writer: &mut Write,
     ctx: &mut ServerContext,
     params: lsp_types::TextDocumentPositionParams,
 ) -> RequestResult {
-    match &ctx.ast {
-        Some(ref ast) => {
-            let ident = get_identifier(&ast.text, params.position);
-            let loc = definition::find_definition(ident, &ast);
-            match loc {
-                Some(loc) => {
-                    let loc = serde_json::to_value(loc).unwrap();
-                    Ok(loc)
-                }
-                None => Ok(Value::Null),
-            }
-        }
-        None => Ok(Value::Null),
+    if let Some(ref ast) = &ctx.ast {
+        let ident = get_identifier(&ast.text, params.position);
+        let loc = find_definition_in_doc(ast, ident).or(find_definition_in_imports(ctx, ident));
+        let res = match loc {
+            Some(loc) => serde_json::to_value(loc).unwrap(),
+            None => Value::Null,
+        };
+        Ok(res)
+    } else {
+        Ok(Value::Null)
     }
 }
 
@@ -342,24 +319,10 @@ fn _check_syntax(
     }
     // TODO: Tentative
     if let Some(ast) = &ctx.ast {
-        check_imports(&ctx.root_path, ast);
+        let imported_files = check_imports(&ctx.root_path, ast);
+        ctx.imported_files = Some(imported_files);
     }
     Ok(())
-}
-
-fn check_imports(root_path: &Path, ast: &MojomAst) {
-    for stmt in &ast.mojom.stmts {
-        match stmt {
-            mojom_parser::Statement::Import(stmt) => {
-                let path = ast.text(&stmt.path);
-                let path = root_path.join(&path[1..path.len() - 1]);
-                eprintln!("Imported path: {:?}", path);
-                // TODO: Implement.
-                let _ = parse_imported(&path);
-            }
-            _ => (),
-        }
-    }
 }
 
 fn exit_notification(ctx: &mut ServerContext) -> Result<()> {
@@ -434,9 +397,9 @@ fn initialize(
 fn get_root_path(params: &lsp_types::InitializeParams) -> PathBuf {
     if let Some(ref uri) = params.root_uri.as_ref() {
         if uri.scheme() == "file" {
-            const FILE_SCHEME: &str = "file://";
-            let path = &uri.as_str()[FILE_SCHEME.len()..];
-            return PathBuf::from(path);
+            if let Ok(path) = uri.to_file_path() {
+                return path;
+            }
         }
     }
     if let Some(ref path) = params.root_path.as_ref() {

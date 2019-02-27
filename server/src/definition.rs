@@ -2,9 +2,9 @@ use lsp_types::{Location, Position, Range};
 
 use mojom_parser::{Element, Visitor};
 
-use crate::server::MojomAst;
+use crate::mojomast::MojomAst;
 
-fn create_lsp_range(ast: &MojomAst, field: &mojom_parser::Range) -> Range {
+pub fn create_lsp_range(ast: &MojomAst, field: &mojom_parser::Range) -> Range {
     let (line, col) = ast.line_col(field.start);
     let start = Position::new((line - 1) as u64, (col - 1) as u64);
     let (line, col) = ast.line_col(field.end);
