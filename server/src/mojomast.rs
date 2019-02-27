@@ -1,10 +1,12 @@
-use mojom_parser::{self, parse, MojomFile, ParseError};
+use mojom_parser::{self, parse, Module, MojomFile, ParseError, Statement};
 
 #[derive(Debug)]
 pub struct MojomAst {
     pub uri: lsp_types::Url,
     pub text: String,
     pub mojom: MojomFile,
+
+    module: Option<Module>,
 }
 
 impl MojomAst {
@@ -14,11 +16,23 @@ impl MojomAst {
     ) -> std::result::Result<MojomAst, ParseError> {
         let text = text.into();
         let mojom = parse(&text)?;
+        let module = find_module_stmt(&mojom);
         Ok(MojomAst {
             uri: uri,
             text: text,
             mojom: mojom,
+            module: module,
         })
+    }
+
+    pub fn from_mojom(uri: lsp_types::Url, text: String, mojom: MojomFile) -> MojomAst {
+        let module = find_module_stmt(&mojom);
+        MojomAst {
+            uri: uri,
+            text: text,
+            mojom: mojom,
+            module: module,
+        }
     }
 
     pub fn text(&self, field: &mojom_parser::Range) -> &str {
@@ -30,4 +44,24 @@ impl MojomAst {
         // Can panic.
         mojom_parser::line_col(&self.text, offset).unwrap()
     }
+
+    pub fn module_name(&self) -> Option<&str> {
+        self.module
+            .as_ref()
+            .map(|ref module| self.text(&module.name))
+    }
+}
+
+fn find_module_stmt(mojom: &MojomFile) -> Option<Module> {
+    // This function assumes that `mojom` has only one Module, which should be
+    // checked in semantics analysis.
+    for stmt in &mojom.stmts {
+        match stmt {
+            Statement::Module(module) => {
+                return Some(module.clone());
+            }
+            _ => continue,
+        }
+    }
+    None
 }

@@ -5,7 +5,7 @@ use crate::Error;
 
 type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Range {
     pub start: usize,
     pub end: usize,
@@ -47,7 +47,7 @@ fn consume_as_range(pairs: &mut Pairs) -> Range {
     pairs.next().unwrap().as_span().into()
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Module {
     pub name: Range,
 }

@@ -16,6 +16,7 @@ struct ImportDefinition {
 #[derive(Debug)]
 struct Import {
     uri: Url,
+    module_name: Option<String>,
     defs: Vec<ImportDefinition>,
 }
 
@@ -46,6 +47,14 @@ impl ImportedFiles {
                     if definition.ident == ident {
                         let loc = Location::new(imported.uri.clone(), definition.range.clone());
                         return Some(loc);
+                    }
+
+                    if let Some(module_name) = &imported.module_name {
+                        let canonocal_name = format!("{}.{}", module_name, definition.ident);
+                        if canonocal_name == ident {
+                            let loc = Location::new(imported.uri.clone(), definition.range.clone());
+                            return Some(loc);
+                        }
                     }
                 }
             }
@@ -138,11 +147,7 @@ fn parse_imported<P: AsRef<Path>>(path: P) -> ImportResult {
     let path = path.as_ref().canonicalize().unwrap();
     let uri = Url::from_file_path(&path).unwrap();
 
-    let ast = MojomAst {
-        uri: uri,
-        text: text,
-        mojom: mojom,
-    };
+    let ast = MojomAst::from_mojom(uri, text, mojom);
 
     let mut v = ImportVisitor {
         ast: &ast,
@@ -152,8 +157,11 @@ fn parse_imported<P: AsRef<Path>>(path: P) -> ImportResult {
     use mojom_parser::Element;
     ast.mojom.accept(&mut v);
 
+    let module_name = ast.module_name().map(|name| name.to_owned());
+
     Ok(Import {
         uri: ast.uri.clone(),
+        module_name: module_name,
         defs: v.defs,
     })
 }
