@@ -184,10 +184,37 @@ fn find_definition_in_imports(ctx: &ServerContext, ident: &str) -> Option<lsp_ty
 }
 
 fn goto_definition_request(
-    _writer: &mut Write,
+    writer: &mut impl Write,
     ctx: &mut ServerContext,
     params: lsp_types::TextDocumentPositionParams,
 ) -> RequestResult {
+    let is_same_uri = if let Some(ref ast) = ctx.ast {
+        params.text_document.uri == ast.uri
+    } else {
+        false
+    };
+    if !is_same_uri {
+        // Invalidate the current document.
+        use std::io::Read;
+        let uri = params.text_document.uri.clone();
+        let path = uri.to_file_path().unwrap();
+        let mut text = String::new();
+        std::fs::File::open(path)
+            .unwrap()
+            .read_to_string(&mut text)
+            .unwrap();
+
+        match _check_syntax(writer, ctx, text, uri) {
+            Ok(_) => (),
+            Err(err) => {
+                // TODO: Should return an Err that indicates the file specified
+                // by `uri` isn't a vailid mojom file.
+                eprintln!("{:#?}", err);
+                unimplemented!();
+            }
+        }
+    }
+
     if let Some(ref ast) = &ctx.ast {
         let ident = get_identifier(&ast.text, params.position);
         let loc = find_definition_in_doc(ast, ident).or(find_definition_in_imports(ctx, ident));
