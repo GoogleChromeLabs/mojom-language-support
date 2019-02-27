@@ -37,6 +37,12 @@ fn consume_semicolon(pairs: &mut Pairs) {
     };
 }
 
+fn consume_token(rule: Rule, pairs: &mut Pairs) {
+    if pairs.next().unwrap().as_rule() != rule {
+        unreachable!()
+    }
+}
+
 fn consume_as_range(pairs: &mut Pairs) -> Range {
     pairs.next().unwrap().as_span().into()
 }
@@ -115,8 +121,15 @@ fn into_enum(mut pairs: Pairs) -> Enum {
     for item in pairs {
         match item.as_rule() {
             Rule::enum_block => {
-                for item in item.into_inner() {
-                    values.push(into_enum_value(item.into_inner()));
+                let mut pairs = item.into_inner();
+                consume_token(Rule::t_lbrace, &mut pairs);
+                for item in pairs {
+                    let value = match item.as_rule() {
+                        Rule::enum_value => into_enum_value(item.into_inner()),
+                        Rule::t_rbrace => break,
+                        _ => unreachable!(),
+                    };
+                    values.push(value);
                 }
             }
             Rule::t_semicolon => break,
@@ -171,31 +184,46 @@ pub struct Struct {
     pub members: Vec<StructBody>,
 }
 
+fn into_struct_members(mut pairs: Pairs) -> Vec<StructBody> {
+    consume_token(Rule::t_lbrace, &mut pairs);
+    let mut members = Vec::new();
+    for item in pairs {
+        if item.as_rule() == Rule::t_rbrace {
+            break;
+        }
+        // At this point `item` should have only one inner and it should be struct_item.
+        let struct_item = item.into_inner().next().unwrap();
+        let member = match struct_item.as_rule() {
+            Rule::const_stmt => StructBody::Const(into_const(struct_item.into_inner())),
+            Rule::enum_stmt => StructBody::Enum(into_enum(struct_item.into_inner())),
+            Rule::struct_field => StructBody::Field(into_struct_field(struct_item.into_inner())),
+            _ => unreachable!(),
+        };
+        members.push(member);
+    }
+    members
+}
+
 fn into_struct(mut pairs: Pairs) -> Struct {
     skip_attribute_list(&mut pairs);
     let name = consume_as_range(&mut pairs);
-    let body = pairs.next();
-    let members = match body {
-        Some(pairs) => {
-            let mut members = Vec::new();
-            for inner in pairs.into_inner() {
-                let item = inner.into_inner().next().unwrap();
-                let item = match item.as_rule() {
-                    Rule::const_stmt => StructBody::Const(into_const(item.into_inner())),
-                    Rule::enum_stmt => StructBody::Enum(into_enum(item.into_inner())),
-                    Rule::struct_field => StructBody::Field(into_struct_field(item.into_inner())),
-                    Rule::t_semicolon => break,
-                    _ => unreachable!(),
-                };
-                members.push(item);
-            }
-            members
+    let item = pairs.next().unwrap();
+    match item.as_rule() {
+        Rule::t_semicolon => {
+            return Struct {
+                name: name,
+                members: Vec::new(),
+            };
         }
-        None => Vec::new(),
-    };
-    Struct {
-        name: name,
-        members: members,
+        Rule::struct_body => {
+            let members = into_struct_members(item.into_inner());
+            consume_semicolon(&mut pairs);
+            return Struct {
+                name: name,
+                members: members,
+            };
+        }
+        _ => unreachable!(),
     }
 }
 
@@ -234,15 +262,18 @@ pub struct Union {
 fn into_union(mut pairs: Pairs) -> Union {
     skip_attribute_list(&mut pairs);
     let name = consume_as_range(&mut pairs);
+    consume_token(Rule::t_lbrace, &mut pairs);
     let mut fields = Vec::new();
-    for item in pairs {
+    loop {
+        let item = pairs.next().unwrap();
         let item = match item.as_rule() {
             Rule::union_field => into_union_field(item.into_inner()),
-            Rule::t_semicolon => break,
+            Rule::t_rbrace => break,
             _ => unreachable!(),
         };
         fields.push(item);
     }
+    consume_semicolon(&mut pairs);
     Union {
         name: name,
         fields: fields,
@@ -267,10 +298,18 @@ fn into_parameter(mut pairs: Pairs) -> Parameter {
     }
 }
 
-fn _parameter_list(pairs: Pairs) -> Vec<Parameter> {
-    pairs
-        .map(|param| into_parameter(param.into_inner()))
-        .collect::<Vec<_>>()
+fn parameter_list(mut pairs: Pairs) -> Vec<Parameter> {
+    consume_token(Rule::t_lparen, &mut pairs);
+    let mut params = Vec::new();
+    for item in pairs {
+        let param = match item.as_rule() {
+            Rule::parameter => into_parameter(item.into_inner()),
+            Rule::t_rparen => break,
+            _ => unreachable!(),
+        };
+        params.push(param);
+    }
+    params
 }
 
 #[derive(Debug)]
@@ -279,7 +318,8 @@ pub struct Response {
 }
 
 fn into_response(mut pairs: Pairs) -> Response {
-    let params = _parameter_list(pairs.next().unwrap().into_inner());
+    consume_token(Rule::t_arrow, &mut pairs);
+    let params = parameter_list(pairs.next().unwrap().into_inner());
     Response { params: params }
 }
 
@@ -298,7 +338,7 @@ fn into_method(mut pairs: Pairs) -> Method {
         Rule::ordinal_value => pairs.next().map(|ord| ord.as_span().into()),
         _ => None,
     };
-    let params = _parameter_list(pairs.next().unwrap().into_inner());
+    let params = parameter_list(pairs.next().unwrap().into_inner());
     let response = pairs.next().map(|res| into_response(res.into_inner()));
     Method {
         name: name,
@@ -334,17 +374,21 @@ pub struct Interface {
 fn into_interface(mut pairs: Pairs) -> Interface {
     skip_attribute_list(&mut pairs);
     let name = consume_as_range(&mut pairs);
+    consume_token(Rule::t_lbrace, &mut pairs);
     let mut members = Vec::new();
-    for item in pairs {
+    // `for` takes the ownership of `pairs`. Use `loop`.
+    loop {
+        let item = pairs.next().unwrap(); // Should not be None.
         match item.as_rule() {
             Rule::interface_body => {
                 let member = into_interface_member(item.into_inner());
                 members.push(member);
             }
-            Rule::t_semicolon => break,
+            Rule::t_rbrace => break,
             _ => unreachable!(),
         }
     }
+    consume_semicolon(&mut pairs);
     Interface {
         name: name,
         members: members,
@@ -644,6 +688,20 @@ mod tests {
         assert_eq!("MyMethod2", partial_text(&input, &stmt.name));
         assert_eq!(0, stmt.params.len());
         assert!(stmt.response.is_none());
+
+        let input = "MyMethod3(int8 int8_arg) => ();";
+        let parsed = MojomParser::parse(Rule::method_stmt, &input)
+            .unwrap()
+            .next()
+            .unwrap();
+        let stmt = into_method(parsed.into_inner());
+        assert_eq!("MyMethod3", partial_text(&input, &stmt.name));
+        assert_eq!(1, stmt.params.len());
+        let params = &stmt.params;
+        assert_eq!("int8", partial_text(&input, &params[0].typ));
+        assert_eq!("int8_arg", partial_text(&input, &params[0].name));
+        let response = stmt.response.as_ref().unwrap();
+        assert_eq!(0, response.params.len());
     }
 
     #[test]
