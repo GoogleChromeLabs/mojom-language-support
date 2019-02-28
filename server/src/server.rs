@@ -100,6 +100,11 @@ fn handle_request(
     let id = msg.id;
     let method = msg.method.as_str();
 
+    // Workaround for Eglot. It sends "exit" as a request, not as a notification.
+    if method == "exit" {
+        return exit_notification(ctx);
+    }
+
     use lsp_types::request::*;
     let res = match method {
         Initialize::METHOD => initialize_request(),
