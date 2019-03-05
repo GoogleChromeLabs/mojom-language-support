@@ -1,5 +1,5 @@
 [package]
-name = "mojo-lsp-server"
+name = "mojom-lsp-server"
 version = "0.1.0"
 authors = ["The Chromium Authors"]
 edition = "2018"
