@@ -1,10 +1,10 @@
 use lsp_types::{Location, Position, Range};
 
-use mojom_parser::{Element, Visitor};
+use mojom_syntax::{Element, Visitor};
 
 use crate::mojomast::MojomAst;
 
-pub fn create_lsp_range(ast: &MojomAst, field: &mojom_parser::Range) -> Range {
+pub fn create_lsp_range(ast: &MojomAst, field: &mojom_syntax::Range) -> Range {
     let (line, col) = ast.line_col(field.start);
     let start = Position::new((line - 1) as u64, (col - 1) as u64);
     let (line, col) = ast.line_col(field.end);
@@ -20,7 +20,7 @@ struct DefinitionVisitor<'a> {
 }
 
 impl<'a> DefinitionVisitor<'a> {
-    fn match_field(&mut self, field: &mojom_parser::Range) {
+    fn match_field(&mut self, field: &mojom_syntax::Range) {
         assert!(self.found.is_none());
         let name = self.ast.text(field);
         self.path.push(name);
@@ -38,35 +38,35 @@ impl<'a> Visitor for DefinitionVisitor<'a> {
         self.found.is_some()
     }
 
-    fn visit_interface(&mut self, elem: &mojom_parser::Interface) {
+    fn visit_interface(&mut self, elem: &mojom_syntax::Interface) {
         self.match_field(&elem.name);
         let name = self.ast.text(&elem.name);
         self.path.push(name);
     }
 
-    fn leave_interface(&mut self, _: &mojom_parser::Interface) {
+    fn leave_interface(&mut self, _: &mojom_syntax::Interface) {
         self.path.pop();
     }
 
-    fn visit_struct(&mut self, elem: &mojom_parser::Struct) {
+    fn visit_struct(&mut self, elem: &mojom_syntax::Struct) {
         self.match_field(&elem.name);
         let name = self.ast.text(&elem.name);
         self.path.push(name);
     }
 
-    fn leave_struct(&mut self, _: &mojom_parser::Struct) {
+    fn leave_struct(&mut self, _: &mojom_syntax::Struct) {
         self.path.pop();
     }
 
-    fn visit_union(&mut self, elem: &mojom_parser::Union) {
+    fn visit_union(&mut self, elem: &mojom_syntax::Union) {
         self.match_field(&elem.name);
     }
 
-    fn visit_enum(&mut self, elem: &mojom_parser::Enum) {
+    fn visit_enum(&mut self, elem: &mojom_syntax::Enum) {
         self.match_field(&elem.name);
     }
 
-    fn visit_const(&mut self, elem: &mojom_parser::Const) {
+    fn visit_const(&mut self, elem: &mojom_syntax::Const) {
         self.match_field(&elem.name);
     }
 }

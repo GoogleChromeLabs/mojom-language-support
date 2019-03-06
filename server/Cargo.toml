@@ -5,7 +5,7 @@ authors = ["The Chromium Authors"]
 edition = "2018"
 
 [dependencies]
-mojom-parser = { path = "../parser" }
+mojom-syntax = { path = "../syntax" }
 
 lsp-types = "0.55"
 serde = { version = "1.0", features = ["derive"] }

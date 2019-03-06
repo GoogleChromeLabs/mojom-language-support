@@ -1,5 +1,5 @@
 [package]
-name = "mojom-parser"
+name = "mojom-syntax"
 version = "0.1.0"
 authors = ["The Chromium Authors"]
 edition = "2018"

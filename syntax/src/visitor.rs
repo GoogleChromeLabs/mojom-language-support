@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::syntax::*;
 
 pub trait Visitor {
     fn is_done(&self) -> bool {

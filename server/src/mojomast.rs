@@ -1,4 +1,4 @@
-use mojom_parser::{self, parse, Module, MojomFile, ParseError, Statement};
+use mojom_syntax::{self, parse, Module, MojomFile, ParseError, Statement};
 
 #[derive(Debug)]
 pub struct MojomAst {
@@ -35,14 +35,14 @@ impl MojomAst {
         }
     }
 
-    pub fn text(&self, field: &mojom_parser::Range) -> &str {
+    pub fn text(&self, field: &mojom_syntax::Range) -> &str {
         // Can panic.
         &self.text[field.start..field.end]
     }
 
     pub fn line_col(&self, offset: usize) -> (usize, usize) {
         // Can panic.
-        mojom_parser::line_col(&self.text, offset).unwrap()
+        mojom_syntax::line_col(&self.text, offset).unwrap()
     }
 
     pub fn module_name(&self) -> Option<&str> {

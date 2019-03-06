@@ -4,14 +4,34 @@ use std::path::PathBuf;
 use serde_json::Value;
 
 use crate::protocol::{
-    read_message, write_error_response, write_notification, write_success_response,
-    write_success_result, ErrorCodes, Message, NotificationMessage, RequestMessage, ResponseError,
+    self, into_notification_params, into_request_id_params, read_message, write_error_response,
+    write_notification, write_success_response, write_success_result, ErrorCodes, Message,
+    NotificationMessage, RequestMessage, ResponseError,
 };
 
 use crate::definition;
 use crate::import::{check_imports, ImportedFiles};
 use crate::mojomast::MojomAst;
-use crate::{Error, Result};
+
+#[derive(Debug)]
+pub enum Error {
+    IoError(std::io::Error),
+    ProtocolError(String),
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Error {
+        Error::IoError(err)
+    }
+}
+
+impl From<protocol::Error> for Error {
+    fn from(err: protocol::Error) -> Error {
+        match err {
+            protocol::Error::ProtocolError(msg) => Error::ProtocolError(msg),
+        }
+    }
+}
 
 #[derive(PartialEq)]
 enum State {
@@ -96,7 +116,7 @@ fn handle_request(
     writer: &mut impl Write,
     ctx: &mut ServerContext,
     msg: RequestMessage,
-) -> Result<()> {
+) -> std::result::Result<(), Error> {
     let id = msg.id;
     let method = msg.method.as_str();
 
@@ -188,36 +208,42 @@ fn find_definition_in_imports(ctx: &ServerContext, ident: &str) -> Option<lsp_ty
         .and_then(|ref imported_files| imported_files.find_definition(ident))
 }
 
+fn is_same_uri(ctx: &ServerContext, uri: &lsp_types::Url) -> bool {
+    if let Some(ref ast) = ctx.ast {
+        *uri == ast.uri
+    } else {
+        false
+    }
+}
+
+fn invalidate_context(writer: &mut impl Write, ctx: &mut ServerContext, uri: &lsp_types::Url) {
+    // Invalidate the current document.
+    use std::io::Read;
+    let path = uri.to_file_path().unwrap();
+    let mut text = String::new();
+    std::fs::File::open(path)
+        .unwrap()
+        .read_to_string(&mut text)
+        .unwrap();
+
+    match _check_syntax(writer, ctx, text, uri.clone()) {
+        Ok(_) => (),
+        Err(err) => {
+            // TODO: Should return an Err that indicates the file specified
+            // by `uri` isn't a vailid mojom file.
+            eprintln!("{:#?}", err);
+            unimplemented!();
+        }
+    }
+}
+
 fn goto_definition_request(
     writer: &mut impl Write,
     ctx: &mut ServerContext,
     params: lsp_types::TextDocumentPositionParams,
 ) -> RequestResult {
-    let is_same_uri = if let Some(ref ast) = ctx.ast {
-        params.text_document.uri == ast.uri
-    } else {
-        false
-    };
-    if !is_same_uri {
-        // Invalidate the current document.
-        use std::io::Read;
-        let uri = params.text_document.uri.clone();
-        let path = uri.to_file_path().unwrap();
-        let mut text = String::new();
-        std::fs::File::open(path)
-            .unwrap()
-            .read_to_string(&mut text)
-            .unwrap();
-
-        match _check_syntax(writer, ctx, text, uri) {
-            Ok(_) => (),
-            Err(err) => {
-                // TODO: Should return an Err that indicates the file specified
-                // by `uri` isn't a vailid mojom file.
-                eprintln!("{:#?}", err);
-                unimplemented!();
-            }
-        }
+    if !is_same_uri(ctx, &params.text_document.uri) {
+        invalidate_context(writer, ctx, &params.text_document.uri);
     }
 
     if let Some(ref ast) = &ctx.ast {
@@ -235,11 +261,11 @@ fn goto_definition_request(
 
 // Notifications
 
-fn get_params<P: serde::de::DeserializeOwned>(params: Value) -> Result<P> {
+fn get_params<P: serde::de::DeserializeOwned>(params: Value) -> std::result::Result<P, Error> {
     serde_json::from_value::<P>(params).map_err(|err| Error::ProtocolError(err.to_string()))
 }
 
-fn do_nothing(msg: &NotificationMessage) -> Result<()> {
+fn do_nothing(msg: &NotificationMessage) -> std::result::Result<(), Error> {
     eprintln!("Received `{}` but do nothing.", msg.method.as_str());
     Ok(())
 }
@@ -248,7 +274,7 @@ fn handle_notification(
     writer: &mut impl Write,
     ctx: &mut ServerContext,
     msg: NotificationMessage,
-) -> Result<()> {
+) -> std::result::Result<(), Error> {
     let method = msg.method.as_str();
     eprintln!("Got notification: {}", method);
 
@@ -275,15 +301,18 @@ fn handle_notification(
 fn publish_diagnotics(
     writer: &mut impl Write,
     params: lsp_types::PublishDiagnosticsParams,
-) -> Result<()> {
+) -> std::result::Result<(), Error> {
     // TODO: Don't use unwrap().
     let params = serde_json::to_value(&params).unwrap();
-    write_notification(writer, "textDocument/publishDiagnostics", params)
+    write_notification(writer, "textDocument/publishDiagnostics", params).map_err(|err| {
+        let msg = format!("{:?}", err);
+        Error::ProtocolError(msg)
+    })
 }
 
-fn convert_error_position(line_col: &mojom_parser::LineColLocation) -> lsp_types::Range {
+fn convert_error_position(line_col: &mojom_syntax::LineColLocation) -> lsp_types::Range {
     let (start, end) = match line_col {
-        mojom_parser::LineColLocation::Pos((line, col)) => {
+        mojom_syntax::LineColLocation::Pos((line, col)) => {
             let start = lsp_types::Position {
                 line: *line as u64 - 1,
                 character: *col as u64 - 1,
@@ -295,7 +324,7 @@ fn convert_error_position(line_col: &mojom_parser::LineColLocation) -> lsp_types
             };
             (start, end)
         }
-        mojom_parser::LineColLocation::Span(start, end) => {
+        mojom_syntax::LineColLocation::Span(start, end) => {
             // `start` and `end` are tuples like (line, col).
             let start = lsp_types::Position {
                 line: start.0 as u64 - 1,
@@ -319,7 +348,7 @@ fn _check_syntax(
     ctx: &mut ServerContext,
     text: String,
     uri: lsp_types::Url,
-) -> Result<()> {
+) -> std::result::Result<(), Error> {
     match MojomAst::new(uri.clone(), text) {
         Ok(ast) => {
             ctx.ast = Some(ast);
@@ -357,7 +386,7 @@ fn _check_syntax(
     Ok(())
 }
 
-fn exit_notification(ctx: &mut ServerContext) -> Result<()> {
+fn exit_notification(ctx: &mut ServerContext) -> std::result::Result<(), Error> {
     // https://microsoft.github.io/language-server-protocol/specification#exit
     if ctx.state == State::ShuttingDown {
         ctx.exit_code = Some(0);
@@ -371,7 +400,7 @@ fn did_open_text_document(
     writer: &mut impl Write,
     ctx: &mut ServerContext,
     params: lsp_types::DidOpenTextDocumentParams,
-) -> Result<()> {
+) -> std::result::Result<(), Error> {
     let uri = params.text_document.uri.clone();
     _check_syntax(writer, ctx, params.text_document.text, uri)
 }
@@ -380,7 +409,7 @@ fn did_change_text_document(
     writer: &mut impl Write,
     ctx: &mut ServerContext,
     params: lsp_types::DidChangeTextDocumentParams,
-) -> Result<()> {
+) -> std::result::Result<(), Error> {
     let uri = params.text_document.uri.clone();
     let content = params
         .content_changes
@@ -396,11 +425,11 @@ fn did_change_text_document(
 fn initialize(
     reader: &mut impl BufRead,
     writer: &mut impl Write,
-) -> Result<lsp_types::InitializeParams> {
+) -> std::result::Result<lsp_types::InitializeParams, Error> {
     let message = read_message(reader)?;
 
     let (id, params) = match message {
-        Message::Request(req) => req.cast::<lsp_types::request::Initialize>()?,
+        Message::Request(req) => into_request_id_params::<lsp_types::request::Initialize>(req)?,
         _ => {
             // TODO: Gracefully handle `exit` and `shutdown` messages.
             let error_message = format!("Expected initialize message but got {:?}", message);
@@ -416,7 +445,9 @@ fn initialize(
 
     let message = read_message(reader)?;
     match message {
-        Message::Notofication(notif) => notif.cast::<lsp_types::notification::Initialized>()?,
+        Message::Notofication(notif) => {
+            into_notification_params::<lsp_types::notification::Initialized>(notif)?
+        }
         _ => {
             let error_message = format!("Expected initialized message but got {:?}", message);
             return Err(Error::ProtocolError(error_message));
@@ -441,7 +472,7 @@ fn get_root_path(params: &lsp_types::InitializeParams) -> PathBuf {
 }
 
 // Returns exit code.
-pub fn start() -> Result<i32> {
+pub fn start() -> std::result::Result<i32, Error> {
     let mut reader = BufReader::new(io::stdin());
     let mut writer = BufWriter::new(io::stdout());
 

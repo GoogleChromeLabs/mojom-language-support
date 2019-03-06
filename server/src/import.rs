@@ -68,7 +68,7 @@ pub fn check_imports<P: AsRef<Path>>(root_path: P, ast: &MojomAst) -> ImportedFi
     let mut imports = Vec::new();
     for stmt in &ast.mojom.stmts {
         match stmt {
-            mojom_parser::Statement::Import(stmt) => {
+            mojom_syntax::Statement::Import(stmt) => {
                 let path = ast.text(&stmt.path);
                 let path = root_path.join(&path[1..path.len() - 1]);
                 let imported = parse_imported(&path);
@@ -89,7 +89,7 @@ struct ImportVisitor<'a> {
 }
 
 impl<'a> ImportVisitor<'a> {
-    fn add(&mut self, field: &mojom_parser::Range) {
+    fn add(&mut self, field: &mojom_syntax::Range) {
         let name = self.ast.text(field);
         self.path.push(name);
         let ident = self.path.join(".");
@@ -102,36 +102,36 @@ impl<'a> ImportVisitor<'a> {
     }
 }
 
-impl<'a> mojom_parser::Visitor for ImportVisitor<'a> {
-    fn visit_interface(&mut self, elem: &mojom_parser::Interface) {
+impl<'a> mojom_syntax::Visitor for ImportVisitor<'a> {
+    fn visit_interface(&mut self, elem: &mojom_syntax::Interface) {
         self.add(&elem.name);
         let name = self.ast.text(&elem.name);
         self.path.push(name);
     }
 
-    fn leave_interface(&mut self, _: &mojom_parser::Interface) {
+    fn leave_interface(&mut self, _: &mojom_syntax::Interface) {
         self.path.pop();
     }
 
-    fn visit_struct(&mut self, elem: &mojom_parser::Struct) {
+    fn visit_struct(&mut self, elem: &mojom_syntax::Struct) {
         self.add(&elem.name);
         let name = self.ast.text(&elem.name);
         self.path.push(name);
     }
 
-    fn leave_struct(&mut self, _: &mojom_parser::Struct) {
+    fn leave_struct(&mut self, _: &mojom_syntax::Struct) {
         self.path.pop();
     }
 
-    fn visit_union(&mut self, elem: &mojom_parser::Union) {
+    fn visit_union(&mut self, elem: &mojom_syntax::Union) {
         self.add(&elem.name);
     }
 
-    fn visit_enum(&mut self, elem: &mojom_parser::Enum) {
+    fn visit_enum(&mut self, elem: &mojom_syntax::Enum) {
         self.add(&elem.name);
     }
 
-    fn visit_const(&mut self, elem: &mojom_parser::Const) {
+    fn visit_const(&mut self, elem: &mojom_syntax::Const) {
         self.add(&elem.name);
     }
 }
@@ -141,7 +141,7 @@ fn parse_imported<P: AsRef<Path>>(path: P) -> ImportResult {
     File::open(path.as_ref())?.read_to_string(&mut text)?;
 
     let mojom =
-        mojom_parser::parse(&text).map_err(|err| ImportError::SyntaxError(err.to_string()))?;
+        mojom_syntax::parse(&text).map_err(|err| ImportError::SyntaxError(err.to_string()))?;
 
     // Unwrap shoud be safe because we opened file already.
     let path = path.as_ref().canonicalize().unwrap();
@@ -154,7 +154,7 @@ fn parse_imported<P: AsRef<Path>>(path: P) -> ImportResult {
         path: Vec::new(),
         defs: Vec::new(),
     };
-    use mojom_parser::Element;
+    use mojom_syntax::Element;
     ast.mojom.accept(&mut v);
 
     let module_name = ast.module_name().map(|name| name.to_owned());

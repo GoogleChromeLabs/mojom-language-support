@@ -1,7 +1,10 @@
 use pest::{Parser, Position, Span};
 
-use crate::parser::{MojomParser, Rule};
 use crate::Error;
+
+#[derive(Parser)]
+#[grammar = "mojom.pest"]
+struct MojomParser;
 
 type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
 

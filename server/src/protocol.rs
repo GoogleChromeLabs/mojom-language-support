@@ -3,7 +3,18 @@ use std::io::{self, Write};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_slice, from_value, Value};
 
-use crate::{Error, Result};
+#[derive(Debug)]
+pub(crate) enum Error {
+    ProtocolError(String),
+}
+
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Error {
+        Error::ProtocolError(err.to_string())
+    }
+}
+
+pub(crate) type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -14,7 +25,7 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn from_slice(buf: &[u8]) -> serde_json::Result<Message> {
+    fn from_slice(buf: &[u8]) -> serde_json::Result<Message> {
         from_slice::<Message>(buf)
     }
 }
@@ -26,24 +37,23 @@ pub struct RequestMessage {
     pub params: Value,
 }
 
-impl RequestMessage {
-    pub fn cast<R>(self) -> Result<(u64, R::Params)>
-    where
-        R: lsp_types::request::Request,
-        R::Params: serde::de::DeserializeOwned,
-    {
-        if self.method != R::METHOD {
-            let error_message = format!("Expected {} but got {}", R::METHOD, self.method);
-            return Err(Error::ProtocolError(error_message));
-        }
-        let params = from_value(self.params).map_err(|err| {
-            let error_message = format!("Failed to parse {} message.\n{:?}", R::METHOD, err);
-            Error::ProtocolError(error_message)
-        })?;
-        Ok((self.id, params))
+pub(crate) fn into_request_id_params<R>(req: RequestMessage) -> Result<(u64, R::Params)>
+where
+    R: lsp_types::request::Request,
+    R::Params: serde::de::DeserializeOwned,
+{
+    if req.method != R::METHOD {
+        let error_message = format!("Expected {} but got {}", R::METHOD, req.method);
+        return Err(Error::ProtocolError(error_message));
     }
+    let params = from_value(req.params).map_err(|err| {
+        let error_message = format!("Failed to parse {} message.\n{:?}", R::METHOD, err);
+        Error::ProtocolError(error_message)
+    })?;
+    Ok((req.id, params))
 }
 
+// Foo
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponseMessage {
     pub id: u64,
@@ -114,22 +124,20 @@ pub struct NotificationMessage {
     pub params: Value,
 }
 
-impl NotificationMessage {
-    pub fn cast<R>(self) -> Result<R::Params>
-    where
-        R: lsp_types::notification::Notification,
-        R::Params: serde::de::DeserializeOwned,
-    {
-        if self.method != R::METHOD {
-            let error_message = format!("Expected {} but got {}", R::METHOD, self.method);
-            return Err(Error::ProtocolError(error_message));
-        }
-        let params = from_value(self.params).map_err(|err| {
-            let error_message = format!("Failed to parse {} message.\n{:?}", R::METHOD, err);
-            Error::ProtocolError(error_message)
-        })?;
-        Ok(params)
+pub(crate) fn into_notification_params<N>(notif: NotificationMessage) -> Result<N::Params>
+where
+    N: lsp_types::notification::Notification,
+    N::Params: serde::de::DeserializeOwned,
+{
+    if notif.method != N::METHOD {
+        let error_message = format!("Expected {} but got {}", N::METHOD, notif.method);
+        return Err(Error::ProtocolError(error_message));
     }
+    let params = from_value(notif.params).map_err(|err| {
+        let error_message = format!("Failed to parse {} message.\n{:?}", N::METHOD, err);
+        Error::ProtocolError(error_message)
+    })?;
+    Ok(params)
 }
 
 // https://microsoft.github.io/language-server-protocol/specification#header-part
@@ -176,7 +184,7 @@ fn read_header(reader: &mut impl io::BufRead) -> io::Result<Header> {
         ))
 }
 
-pub fn read_message(reader: &mut impl io::BufRead) -> Result<Message> {
+pub(crate) fn read_message(reader: &mut impl io::BufRead) -> Result<Message> {
     let header = read_header(reader)?;
     let mut buf = vec![0; header.content_length];
     reader.read_exact(&mut buf)?;
@@ -210,7 +218,7 @@ fn write_message<M: Serialize>(writer: &mut impl Write, message: M) -> Result<()
     Ok(())
 }
 
-pub fn write_success_result<R>(writer: &mut impl Write, id: u64, res: R) -> Result<()>
+pub(crate) fn write_success_result<R>(writer: &mut impl Write, id: u64, res: R) -> Result<()>
 where
     R: serde::Serialize,
 {
@@ -221,7 +229,11 @@ where
     write_success_response(writer, id, res)
 }
 
-pub fn write_success_response(writer: &mut impl Write, id: u64, result: Value) -> Result<()> {
+pub(crate) fn write_success_response(
+    writer: &mut impl Write,
+    id: u64,
+    result: Value,
+) -> Result<()> {
     let message = JsonRpcResponseMessage {
         jsonrpc: "2.0",
         id: id,
@@ -231,7 +243,11 @@ pub fn write_success_response(writer: &mut impl Write, id: u64, result: Value) -
     write_message(writer, message)
 }
 
-pub fn write_error_response(writer: &mut impl Write, id: u64, error: ResponseError) -> Result<()> {
+pub(crate) fn write_error_response(
+    writer: &mut impl Write,
+    id: u64,
+    error: ResponseError,
+) -> Result<()> {
     let message = JsonRpcResponseMessage {
         jsonrpc: "2.0",
         id: id,
@@ -248,7 +264,11 @@ struct JsonRpcNotificationMessage<'a> {
     params: Value,
 }
 
-pub fn write_notification(writer: &mut impl Write, method: &str, params: Value) -> Result<()> {
+pub(crate) fn write_notification(
+    writer: &mut impl Write,
+    method: &str,
+    params: Value,
+) -> Result<()> {
     let message = JsonRpcNotificationMessage {
         jsonrpc: "2.0",
         method: method,
