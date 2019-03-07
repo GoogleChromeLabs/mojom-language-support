@@ -195,7 +195,7 @@ mod tests {
 
         let imports = check_imports(&root_path, &ast);
 
-        let res = imports.find_definition("BarStruct.BarEnum");
+        let res = imports.find_definition("FooStruct.FooEnum");
         assert!(res.is_some());
     }
 }

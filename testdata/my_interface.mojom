@@ -1,0 +1,9 @@
+import "my_service.mojom";
+
+// MyInterface is my own interface.
+interface MyInterface {
+    enum MyInnerEnum { kOne, kTwo, KThree, };
+
+    GetService() => (MyService service);
+    DoSomething(BarStruct bar);
+};

@@ -1,0 +1,5 @@
+module foo;
+
+struct FooStruct {
+    enum FooEnum { kOne, kTwo, kThree, };
+};

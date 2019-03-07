@@ -1,0 +1,6 @@
+import "my_interface.mojom";
+import "foo_module/foo.mojom";
+
+interface MyService {
+    GetMyInterface() => (MyInterface my_interface);
+};

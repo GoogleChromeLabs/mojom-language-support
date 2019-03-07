@@ -131,16 +131,22 @@ fn handle_request(
         Shutdown::METHOD => shutdown_request(ctx),
         GotoDefinition::METHOD => get_request_params(msg.params)
             .and_then(|params| goto_definition_request(writer, ctx, params)),
-        _ => {
-            eprintln!("Received unimplemented request: {:?}", msg);
-            unimplemented!();
-        }
+        _ => unimplemented_request(id, method),
     };
     match res {
         Ok(res) => write_success_response(writer, id, res)?,
         Err(error) => write_error_response(writer, id, error)?,
     }
     Ok(())
+}
+
+fn unimplemented_request(id: u64, method_name: &str) -> std::result::Result<Value, ResponseError> {
+    let msg = format!(
+        "Unimplemented request: id = {} method = {}",
+        id, method_name
+    );
+    let err = ResponseError::new(ErrorCodes::InternalError, msg);
+    Err(err)
 }
 
 type RequestResult = std::result::Result<Value, ResponseError>;

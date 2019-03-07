@@ -15,7 +15,7 @@ fn parse_single_mojom<P: AsRef<Path>>(path: P) {
     let mut input = String::new();
     reader.read_to_string(&mut input).unwrap();
 
-    match mojom_parser::parse(&input) {
+    match mojom_syntax::parse(&input) {
         Ok(_mojom) => {
             println!("OK: {:?}", path.as_ref());
         }
