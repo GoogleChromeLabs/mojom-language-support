@@ -4,13 +4,13 @@ use std::path::PathBuf;
 use serde_json::Value;
 
 use crate::protocol::{
-    self, into_notification_params, into_request_id_params, read_message, write_error_response,
-    write_notification, write_success_response, write_success_result, ErrorCodes, Message,
-    NotificationMessage, RequestMessage, ResponseError,
+    self, into_notification_params, into_request_id_params, read_message, write_success_result,
+    ErrorCodes, Message, NotificationMessage, RequestMessage, ResponseError,
 };
 
 use crate::definition;
 use crate::import::{check_imports, ImportedFiles};
+use crate::messagesender::{MessageSender, MessageSenderThread};
 use crate::mojomast::MojomAst;
 
 #[derive(Debug)]
@@ -113,8 +113,8 @@ fn get_request_params<P: serde::de::DeserializeOwned>(
 }
 
 fn handle_request(
-    writer: &mut impl Write,
     ctx: &mut ServerContext,
+    mut msg_sender: MessageSender,
     msg: RequestMessage,
 ) -> std::result::Result<(), Error> {
     let id = msg.id;
@@ -130,13 +130,15 @@ fn handle_request(
         Initialize::METHOD => initialize_request(),
         Shutdown::METHOD => shutdown_request(ctx),
         GotoDefinition::METHOD => get_request_params(msg.params)
-            .and_then(|params| goto_definition_request(writer, ctx, params)),
+            .and_then(|params| goto_definition_request(ctx, msg_sender.clone(), params)),
         _ => unimplemented_request(id, method),
     };
     match res {
-        Ok(res) => write_success_response(writer, id, res)?,
-        Err(error) => write_error_response(writer, id, error)?,
-    }
+        Ok(res) => {
+            msg_sender.send_success_response(id, res);
+        }
+        Err(err) => msg_sender.send_error_response(id, err),
+    };
     Ok(())
 }
 
@@ -222,7 +224,7 @@ fn is_same_uri(ctx: &ServerContext, uri: &lsp_types::Url) -> bool {
     }
 }
 
-fn invalidate_context(writer: &mut impl Write, ctx: &mut ServerContext, uri: &lsp_types::Url) {
+fn invalidate_context(ctx: &mut ServerContext, msg_sender: MessageSender, uri: &lsp_types::Url) {
     // Invalidate the current document.
     use std::io::Read;
     let path = uri.to_file_path().unwrap();
@@ -232,7 +234,7 @@ fn invalidate_context(writer: &mut impl Write, ctx: &mut ServerContext, uri: &ls
         .read_to_string(&mut text)
         .unwrap();
 
-    match _check_syntax(writer, ctx, text, uri.clone()) {
+    match _check_syntax(ctx, msg_sender, text, uri.clone()) {
         Ok(_) => (),
         Err(err) => {
             // TODO: Should return an Err that indicates the file specified
@@ -244,12 +246,12 @@ fn invalidate_context(writer: &mut impl Write, ctx: &mut ServerContext, uri: &ls
 }
 
 fn goto_definition_request(
-    writer: &mut impl Write,
     ctx: &mut ServerContext,
+    msg_sender: MessageSender,
     params: lsp_types::TextDocumentPositionParams,
 ) -> RequestResult {
     if !is_same_uri(ctx, &params.text_document.uri) {
-        invalidate_context(writer, ctx, &params.text_document.uri);
+        invalidate_context(ctx, msg_sender, &params.text_document.uri);
     }
 
     if let Some(ref ast) = &ctx.ast {
@@ -277,8 +279,8 @@ fn do_nothing(msg: &NotificationMessage) -> std::result::Result<(), Error> {
 }
 
 fn handle_notification(
-    writer: &mut impl Write,
     ctx: &mut ServerContext,
+    msg_sender: MessageSender,
     msg: NotificationMessage,
 ) -> std::result::Result<(), Error> {
     let method = msg.method.as_str();
@@ -287,12 +289,10 @@ fn handle_notification(
     use lsp_types::notification::*;
     match msg.method.as_str() {
         Exit::METHOD => exit_notification(ctx),
-        DidOpenTextDocument::METHOD => {
-            get_params(msg.params).and_then(|params| did_open_text_document(writer, ctx, params))
-        }
-        DidChangeTextDocument::METHOD => {
-            get_params(msg.params).and_then(|params| did_change_text_document(writer, ctx, params))
-        }
+        DidOpenTextDocument::METHOD => get_params(msg.params)
+            .and_then(|params| did_open_text_document(ctx, msg_sender, params)),
+        DidChangeTextDocument::METHOD => get_params(msg.params)
+            .and_then(|params| did_change_text_document(ctx, msg_sender, params)),
         // Accept following notifications but do nothing.
         DidChangeConfiguration::METHOD => do_nothing(&msg),
         WillSaveTextDocument::METHOD => do_nothing(&msg),
@@ -305,15 +305,17 @@ fn handle_notification(
 }
 
 fn publish_diagnotics(
-    writer: &mut impl Write,
+    mut msg_sender: MessageSender,
     params: lsp_types::PublishDiagnosticsParams,
 ) -> std::result::Result<(), Error> {
     // TODO: Don't use unwrap().
     let params = serde_json::to_value(&params).unwrap();
-    write_notification(writer, "textDocument/publishDiagnostics", params).map_err(|err| {
-        let msg = format!("{:?}", err);
-        Error::ProtocolError(msg)
-    })
+    let msg = NotificationMessage {
+        method: "textDocument/publishDiagnostics".to_owned(),
+        params: params,
+    };
+    msg_sender.send_notification(msg);
+    Ok(())
 }
 
 fn convert_error_position(line_col: &mojom_syntax::LineColLocation) -> lsp_types::Range {
@@ -350,8 +352,8 @@ fn convert_error_position(line_col: &mojom_syntax::LineColLocation) -> lsp_types
 }
 
 fn _check_syntax(
-    writer: &mut impl Write,
     ctx: &mut ServerContext,
+    msg_sender: MessageSender,
     text: String,
     uri: lsp_types::Url,
 ) -> std::result::Result<(), Error> {
@@ -362,7 +364,7 @@ fn _check_syntax(
                 uri: uri,
                 diagnostics: vec![],
             };
-            publish_diagnotics(writer, params)?;
+            publish_diagnotics(msg_sender, params)?;
             ctx.has_error = false;
         }
         Err(err) => {
@@ -379,7 +381,7 @@ fn _check_syntax(
                 uri: uri,
                 diagnostics: vec![diagnostic],
             };
-            publish_diagnotics(writer, params)?;
+            publish_diagnotics(msg_sender, params)?;
             ctx.ast = None;
             ctx.has_error = true;
         }
@@ -403,17 +405,17 @@ fn exit_notification(ctx: &mut ServerContext) -> std::result::Result<(), Error> 
 }
 
 fn did_open_text_document(
-    writer: &mut impl Write,
     ctx: &mut ServerContext,
+    msg_sender: MessageSender,
     params: lsp_types::DidOpenTextDocumentParams,
 ) -> std::result::Result<(), Error> {
     let uri = params.text_document.uri.clone();
-    _check_syntax(writer, ctx, params.text_document.text, uri)
+    _check_syntax(ctx, msg_sender, params.text_document.text, uri)
 }
 
 fn did_change_text_document(
-    writer: &mut impl Write,
     ctx: &mut ServerContext,
+    msg_sender: MessageSender,
     params: lsp_types::DidChangeTextDocumentParams,
 ) -> std::result::Result<(), Error> {
     let uri = params.text_document.uri.clone();
@@ -423,7 +425,7 @@ fn did_change_text_document(
         .map(|i| i.text.to_owned())
         .collect::<Vec<_>>();
     let text = content.join("");
-    _check_syntax(writer, ctx, text, uri)
+    _check_syntax(ctx, msg_sender, text, uri)
 }
 
 // Initialization
@@ -487,15 +489,18 @@ pub fn start() -> std::result::Result<i32, Error> {
     let root_path = get_root_path(&params);
     eprintln!("root_path: {:?}", root_path);
 
+    let msg_sender_thread = MessageSenderThread::start(writer);
+
     let mut ctx = ServerContext::new(root_path);
 
     loop {
         eprintln!("Reading message...");
         let message = read_message(&mut reader)?;
+        let msg_sender = msg_sender_thread.get_sender();
         match message {
-            Message::Request(request) => handle_request(&mut writer, &mut ctx, request)?,
+            Message::Request(request) => handle_request(&mut ctx, msg_sender, request)?,
             Message::Notofication(notification) => {
-                handle_notification(&mut writer, &mut ctx, notification)?
+                handle_notification(&mut ctx, msg_sender, notification)?
             }
             _ => unimplemented!(),
         };

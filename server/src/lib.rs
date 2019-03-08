@@ -4,6 +4,7 @@ extern crate serde_json;
 
 mod definition;
 mod import;
+mod messagesender;
 mod mojomast;
 mod protocol;
 mod server;
