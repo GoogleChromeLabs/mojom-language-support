@@ -1,11 +1,10 @@
-use std::io::{self, BufRead, BufReader, BufWriter, Write};
+use std::io::{self, BufReader, BufWriter};
 use std::path::PathBuf;
 
 use serde_json::Value;
 
 use crate::protocol::{
-    self, into_notification_params, into_request_id_params, read_message, write_success_result,
-    ErrorCodes, Message, NotificationMessage, RequestMessage, ResponseError,
+    self, read_message, ErrorCodes, Message, NotificationMessage, RequestMessage, ResponseError,
 };
 
 use crate::diagnostic::Diagnostic;
@@ -52,42 +51,6 @@ impl ServerContext {
             diag: diag,
             exit_code: None,
         }
-    }
-}
-
-fn create_server_capabilities() -> lsp_types::ServerCapabilities {
-    let options = lsp_types::TextDocumentSyncOptions {
-        open_close: Some(true),
-        change: Some(lsp_types::TextDocumentSyncKind::Full),
-        will_save: None,
-        will_save_wait_until: None,
-        save: None,
-    };
-
-    let text_document_sync = lsp_types::TextDocumentSyncCapability::Options(options);
-
-    lsp_types::ServerCapabilities {
-        text_document_sync: Some(text_document_sync),
-        hover_provider: None,
-        completion_provider: None,
-        signature_help_provider: None,
-        definition_provider: Some(true),
-        type_definition_provider: None,
-        implementation_provider: None,
-        references_provider: None,
-        document_highlight_provider: None,
-        document_symbol_provider: None,
-        workspace_symbol_provider: None,
-        code_action_provider: None,
-        code_lens_provider: None,
-        document_formatting_provider: None,
-        document_range_formatting_provider: None,
-        document_on_type_formatting_provider: None,
-        rename_provider: None,
-        color_provider: None,
-        folding_range_provider: None,
-        execute_command_provider: None,
-        workspace: None,
     }
 }
 
@@ -244,43 +207,6 @@ fn did_change_text_document(
     Ok(())
 }
 
-// Initialization
-
-fn initialize(
-    reader: &mut impl BufRead,
-    writer: &mut impl Write,
-) -> std::result::Result<lsp_types::InitializeParams, Error> {
-    let message = read_message(reader)?;
-
-    let (id, params) = match message {
-        Message::Request(req) => into_request_id_params::<lsp_types::request::Initialize>(req)?,
-        _ => {
-            // TODO: Gracefully handle `exit` and `shutdown` messages.
-            let error_message = format!("Expected initialize message but got {:?}", message);
-            return Err(Error::ProtocolError(error_message));
-        }
-    };
-
-    let capabilities = create_server_capabilities();
-    let res = lsp_types::InitializeResult {
-        capabilities: capabilities,
-    };
-    write_success_result(writer, id, res)?;
-
-    let message = read_message(reader)?;
-    match message {
-        Message::Notofication(notif) => {
-            into_notification_params::<lsp_types::notification::Initialized>(notif)?
-        }
-        _ => {
-            let error_message = format!("Expected initialized message but got {:?}", message);
-            return Err(Error::ProtocolError(error_message));
-        }
-    };
-
-    Ok(params)
-}
-
 fn get_root_path(params: &lsp_types::InitializeParams) -> PathBuf {
     if let Some(ref uri) = params.root_uri.as_ref() {
         if uri.scheme() == "file" {
@@ -300,7 +226,7 @@ pub fn start() -> std::result::Result<i32, Error> {
     let mut reader = BufReader::new(io::stdin());
     let mut writer = BufWriter::new(io::stdout());
 
-    let params = initialize(&mut reader, &mut writer)?;
+    let params = crate::initialization::initialize(&mut reader, &mut writer)?;
 
     let root_path = get_root_path(&params);
     eprintln!("root_path: {:?}", root_path);
@@ -317,6 +243,7 @@ pub fn start() -> std::result::Result<i32, Error> {
         match message {
             Message::Request(request) => handle_request(&mut ctx, msg_sender, request)?,
             Message::Notofication(notification) => handle_notification(&mut ctx, notification)?,
+            // TODO: Send a protocol error?
             _ => unimplemented!(),
         };
 

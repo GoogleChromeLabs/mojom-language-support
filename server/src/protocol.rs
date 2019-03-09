@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 
 use serde::{Deserialize, Serialize};
-use serde_json::{from_slice, from_value, Value};
+use serde_json::{from_slice, Value};
 
 #[derive(Debug)]
 pub(crate) enum Error {
@@ -35,22 +35,6 @@ pub struct RequestMessage {
     pub id: u64,
     pub method: String,
     pub params: Value,
-}
-
-pub(crate) fn into_request_id_params<R>(req: RequestMessage) -> Result<(u64, R::Params)>
-where
-    R: lsp_types::request::Request,
-    R::Params: serde::de::DeserializeOwned,
-{
-    if req.method != R::METHOD {
-        let error_message = format!("Expected {} but got {}", R::METHOD, req.method);
-        return Err(Error::ProtocolError(error_message));
-    }
-    let params = from_value(req.params).map_err(|err| {
-        let error_message = format!("Failed to parse {} message.\n{:?}", R::METHOD, err);
-        Error::ProtocolError(error_message)
-    })?;
-    Ok((req.id, params))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -121,22 +105,6 @@ impl From<ErrorCodes> for i32 {
 pub struct NotificationMessage {
     pub method: String,
     pub params: Value,
-}
-
-pub(crate) fn into_notification_params<N>(notif: NotificationMessage) -> Result<N::Params>
-where
-    N: lsp_types::notification::Notification,
-    N::Params: serde::de::DeserializeOwned,
-{
-    if notif.method != N::METHOD {
-        let error_message = format!("Expected {} but got {}", N::METHOD, notif.method);
-        return Err(Error::ProtocolError(error_message));
-    }
-    let params = from_value(notif.params).map_err(|err| {
-        let error_message = format!("Failed to parse {} message.\n{:?}", N::METHOD, err);
-        Error::ProtocolError(error_message)
-    })?;
-    Ok(params)
 }
 
 // https://microsoft.github.io/language-server-protocol/specification#header-part
