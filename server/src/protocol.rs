@@ -4,21 +4,19 @@ use serde::{Deserialize, Serialize};
 use serde_json::{from_slice, Value};
 
 #[derive(Debug)]
-pub(crate) enum Error {
-    ProtocolError(String),
-}
+pub(crate) struct ProtocolError(pub String);
 
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Error {
-        Error::ProtocolError(err.to_string())
+impl From<io::Error> for ProtocolError {
+    fn from(err: io::Error) -> ProtocolError {
+        ProtocolError(err.to_string())
     }
 }
 
-pub(crate) type Result<T> = std::result::Result<T, Error>;
+pub(crate) type Result<T> = std::result::Result<T, ProtocolError>;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum Message {
+pub(crate) enum Message {
     Request(RequestMessage),
     Response(ResponseMessage),
     Notofication(NotificationMessage),
@@ -31,14 +29,14 @@ impl Message {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RequestMessage {
+pub(crate) struct RequestMessage {
     pub id: u64,
     pub method: String,
     pub params: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ResponseMessage {
+pub(crate) struct ResponseMessage {
     pub id: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
@@ -47,7 +45,7 @@ pub struct ResponseMessage {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ResponseError {
+pub(crate) struct ResponseError {
     pub code: i32,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -55,7 +53,7 @@ pub struct ResponseError {
 }
 
 impl ResponseError {
-    pub fn new(code: ErrorCodes, message: String) -> ResponseError {
+    pub(crate) fn new(code: ErrorCodes, message: String) -> ResponseError {
         ResponseError {
             code: code.into(),
             message: message,
@@ -64,7 +62,7 @@ impl ResponseError {
     }
 }
 
-pub enum ErrorCodes {
+pub(crate) enum ErrorCodes {
     // Defined by JSON RPC
     ParseError,
     InvalidRequest,
@@ -102,7 +100,7 @@ impl From<ErrorCodes> for i32 {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct NotificationMessage {
+pub(crate) struct NotificationMessage {
     pub method: String,
     pub params: Value,
 }
@@ -157,7 +155,7 @@ pub(crate) fn read_message(reader: &mut impl io::BufRead) -> Result<Message> {
     reader.read_exact(&mut buf)?;
     match Message::from_slice(&buf) {
         Ok(message) => Ok(message),
-        Err(_) => Err(Error::ProtocolError("Failed to parse message".to_owned())),
+        Err(_) => Err(ProtocolError("Failed to parse message".to_owned())),
     }
 }
 
@@ -174,7 +172,7 @@ struct JsonRpcResponseMessage<'a> {
 fn write_message<M: Serialize>(writer: &mut impl Write, message: M) -> Result<()> {
     let message = serde_json::to_string(&message).map_err(|err| {
         let error_message = err.to_string();
-        Error::ProtocolError(error_message)
+        ProtocolError(error_message)
     })?;
 
     let content_length = message.len();
@@ -191,7 +189,7 @@ where
 {
     let res = serde_json::to_value(&res).map_err(|err| {
         let error_message = err.to_string();
-        Error::ProtocolError(error_message)
+        ProtocolError(error_message)
     })?;
     write_success_response(writer, id, res)
 }

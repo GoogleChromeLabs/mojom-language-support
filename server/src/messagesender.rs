@@ -16,7 +16,6 @@ struct ErrorResponse {
     err: ResponseError,
 }
 
-// TODO: Maybe rename this to MessageSenderRequest and add Terminate message.
 enum SendingMessage {
     SuccessResponse(SuccessResponse),
     ErrorResponse(ErrorResponse),

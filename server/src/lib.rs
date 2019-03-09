@@ -1,7 +1,3 @@
-extern crate lsp_types;
-extern crate serde;
-extern crate serde_json;
-
 mod definition;
 mod diagnostic;
 mod import;

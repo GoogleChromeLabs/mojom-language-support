@@ -35,12 +35,12 @@ impl From<std::io::Error> for ImportError {
 type ImportResult = std::result::Result<Import, ImportError>;
 
 #[derive(Debug)]
-pub struct ImportedFiles {
+pub(crate) struct ImportedFiles {
     imports: Vec<ImportResult>,
 }
 
 impl ImportedFiles {
-    pub fn find_definition(&self, ident: &str) -> Option<Location> {
+    pub(crate) fn find_definition(&self, ident: &str) -> Option<Location> {
         for imported in &self.imports {
             if let Ok(ref imported) = imported {
                 for definition in &imported.defs {
@@ -63,7 +63,7 @@ impl ImportedFiles {
     }
 }
 
-pub fn check_imports<P: AsRef<Path>>(root_path: P, ast: &MojomAst) -> ImportedFiles {
+pub(crate) fn check_imports<P: AsRef<Path>>(root_path: P, ast: &MojomAst) -> ImportedFiles {
     let root_path = root_path.as_ref();
     let mut imports = Vec::new();
     for stmt in &ast.mojom.stmts {

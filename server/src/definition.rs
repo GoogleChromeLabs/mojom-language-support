@@ -4,7 +4,7 @@ use mojom_syntax::{Element, Visitor};
 
 use crate::mojomast::MojomAst;
 
-pub fn create_lsp_range(ast: &MojomAst, field: &mojom_syntax::Range) -> Range {
+pub(crate) fn create_lsp_range(ast: &MojomAst, field: &mojom_syntax::Range) -> Range {
     let (line, col) = ast.line_col(field.start);
     let start = Position::new((line - 1) as u64, (col - 1) as u64);
     let (line, col) = ast.line_col(field.end);
@@ -71,7 +71,7 @@ impl<'a> Visitor for DefinitionVisitor<'a> {
     }
 }
 
-pub fn find_definition(ident: &str, ast: &MojomAst) -> Option<Location> {
+pub(crate) fn find_definition(ident: &str, ast: &MojomAst) -> Option<Location> {
     let mut v = DefinitionVisitor {
         ast: ast,
         ident: ident,

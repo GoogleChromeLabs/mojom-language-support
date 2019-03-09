@@ -11,22 +11,20 @@ use crate::diagnostic::{start_diagnostics_thread, DiagnosticsThread};
 use crate::messagesender::{start_message_sender_thread, MessageSender};
 
 #[derive(Debug)]
-pub enum Error {
-    IoError(std::io::Error),
+pub enum ServerError {
     ProtocolError(String),
 }
 
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Error {
-        Error::IoError(err)
+impl From<protocol::ProtocolError> for ServerError {
+    fn from(err: protocol::ProtocolError) -> ServerError {
+        ServerError::ProtocolError(err.0)
     }
 }
 
-impl From<protocol::Error> for Error {
-    fn from(err: protocol::Error) -> Error {
-        match err {
-            protocol::Error::ProtocolError(msg) => Error::ProtocolError(msg),
-        }
+impl From<serde_json::Error> for ServerError {
+    fn from(err: serde_json::Error) -> ServerError {
+        let msg = format!("Invalid json message: {}", err);
+        ServerError::ProtocolError(msg)
     }
 }
 
@@ -38,6 +36,8 @@ enum State {
 
 struct ServerContext {
     state: State,
+    // A handler to send messages on the main thread.
+    msg_sender: MessageSender,
     // A handler to the diagnostics thread.
     diag: DiagnosticsThread,
     // Set when `exit` notification is received.
@@ -45,9 +45,10 @@ struct ServerContext {
 }
 
 impl ServerContext {
-    fn new(diag: DiagnosticsThread) -> ServerContext {
+    fn new(msg_sender: MessageSender, diag: DiagnosticsThread) -> ServerContext {
         ServerContext {
             state: State::Initialized,
+            msg_sender: msg_sender,
             diag: diag,
             exit_code: None,
         }
@@ -65,15 +66,15 @@ fn get_request_params<P: serde::de::DeserializeOwned>(
 
 fn handle_request(
     ctx: &mut ServerContext,
-    msg_sender: MessageSender,
     msg: RequestMessage,
-) -> std::result::Result<(), Error> {
+) -> std::result::Result<(), ServerError> {
     let id = msg.id;
     let method = msg.method.as_str();
 
     // Workaround for Eglot. It sends "exit" as a request, not as a notification.
     if method == "exit" {
-        return exit_notification(ctx);
+        exit_notification(ctx);
+        return Ok(());
     }
 
     use lsp_types::request::*;
@@ -86,14 +87,16 @@ fn handle_request(
     };
     match res {
         Ok(res) => {
-            msg_sender.send_success_response(id, res);
+            ctx.msg_sender.send_success_response(id, res);
         }
-        Err(err) => msg_sender.send_error_response(id, err),
+        Err(err) => ctx.msg_sender.send_error_response(id, err),
     };
     Ok(())
 }
 
-fn unimplemented_request(id: u64, method_name: &str) -> std::result::Result<Value, ResponseError> {
+type RequestResult = std::result::Result<Value, ResponseError>;
+
+fn unimplemented_request(id: u64, method_name: &str) -> RequestResult {
     let msg = format!(
         "Unimplemented request: id = {} method = {}",
         id, method_name
@@ -102,10 +105,8 @@ fn unimplemented_request(id: u64, method_name: &str) -> std::result::Result<Valu
     Err(err)
 }
 
-type RequestResult = std::result::Result<Value, ResponseError>;
-
 fn initialize_request() -> RequestResult {
-    // The server has been initialized already.
+    // The server was already initialized.
     let error_message = "Unexpected initialize message".to_owned();
     Err(ResponseError::new(
         ErrorCodes::ServerNotInitialized,
@@ -131,30 +132,24 @@ fn goto_definition_request(
 
 // Notifications
 
-fn get_params<P: serde::de::DeserializeOwned>(params: Value) -> std::result::Result<P, Error> {
-    serde_json::from_value::<P>(params).map_err(|err| Error::ProtocolError(err.to_string()))
-}
-
-fn do_nothing(msg: &NotificationMessage) -> std::result::Result<(), Error> {
-    eprintln!("Received `{}` but do nothing.", msg.method.as_str());
-    Ok(())
+fn get_params<P: serde::de::DeserializeOwned>(
+    params: Value,
+) -> std::result::Result<P, ServerError> {
+    serde_json::from_value::<P>(params).map_err(|err| ServerError::ProtocolError(err.to_string()))
 }
 
 fn handle_notification(
     ctx: &mut ServerContext,
     msg: NotificationMessage,
-) -> std::result::Result<(), Error> {
-    let method = msg.method.as_str();
-    eprintln!("Got notification: {}", method);
-
+) -> std::result::Result<(), ServerError> {
     use lsp_types::notification::*;
     match msg.method.as_str() {
         Exit::METHOD => exit_notification(ctx),
         DidOpenTextDocument::METHOD => {
-            get_params(msg.params).and_then(|params| did_open_text_document(ctx, params))
+            get_params(msg.params).map(|params| did_open_text_document(ctx, params))?;
         }
         DidChangeTextDocument::METHOD => {
-            get_params(msg.params).and_then(|params| did_change_text_document(ctx, params))
+            get_params(msg.params).map(|params| did_change_text_document(ctx, params))?;
         }
         // Accept following notifications but do nothing.
         DidChangeConfiguration::METHOD => do_nothing(&msg),
@@ -162,34 +157,33 @@ fn handle_notification(
         DidSaveTextDocument::METHOD => do_nothing(&msg),
         _ => {
             eprintln!("Received unimplemented notification: {:#?}", msg);
-            Ok(())
         }
     }
+    Ok(())
 }
 
-fn exit_notification(ctx: &mut ServerContext) -> std::result::Result<(), Error> {
+fn do_nothing(msg: &NotificationMessage) {
+    eprintln!("Received `{}` but do nothing.", msg.method.as_str());
+}
+
+fn exit_notification(ctx: &mut ServerContext) {
     // https://microsoft.github.io/language-server-protocol/specification#exit
     if ctx.state == State::ShuttingDown {
         ctx.exit_code = Some(0);
     } else {
         ctx.exit_code = Some(1);
     }
-    Ok(())
 }
 
-fn did_open_text_document(
-    ctx: &mut ServerContext,
-    params: lsp_types::DidOpenTextDocumentParams,
-) -> std::result::Result<(), Error> {
+fn did_open_text_document(ctx: &mut ServerContext, params: lsp_types::DidOpenTextDocumentParams) {
     ctx.diag
         .check(params.text_document.uri, params.text_document.text);
-    Ok(())
 }
 
 fn did_change_text_document(
     ctx: &mut ServerContext,
     params: lsp_types::DidChangeTextDocumentParams,
-) -> std::result::Result<(), Error> {
+) {
     let uri = params.text_document.uri.clone();
     let content = params
         .content_changes
@@ -198,7 +192,6 @@ fn did_change_text_document(
         .collect::<Vec<_>>();
     let text = content.join("");
     ctx.diag.check(uri, text);
-    Ok(())
 }
 
 fn get_root_path(params: &lsp_types::InitializeParams) -> PathBuf {
@@ -216,28 +209,24 @@ fn get_root_path(params: &lsp_types::InitializeParams) -> PathBuf {
 }
 
 // Returns exit code.
-pub fn start() -> std::result::Result<i32, Error> {
+pub fn start() -> std::result::Result<i32, ServerError> {
     let mut reader = BufReader::new(io::stdin());
     let mut writer = BufWriter::new(io::stdout());
 
     let params = crate::initialization::initialize(&mut reader, &mut writer)?;
 
     let root_path = get_root_path(&params);
-    eprintln!("root_path: {:?}", root_path);
 
     let msg_sender_thread = start_message_sender_thread(writer);
     let diag = start_diagnostics_thread(root_path, msg_sender_thread.get_sender());
 
-    let mut ctx = ServerContext::new(diag);
+    let mut ctx = ServerContext::new(msg_sender_thread.get_sender(), diag);
     loop {
-        eprintln!("Reading message...");
         let message = read_message(&mut reader)?;
-        let msg_sender = msg_sender_thread.get_sender();
         match message {
-            Message::Request(request) => handle_request(&mut ctx, msg_sender, request)?,
+            Message::Request(request) => handle_request(&mut ctx, request)?,
             Message::Notofication(notification) => handle_notification(&mut ctx, notification)?,
-            // TODO: Send a protocol error?
-            _ => unimplemented!(),
+            _ => unreachable!(),
         };
 
         if let Some(exit_code) = ctx.exit_code {
