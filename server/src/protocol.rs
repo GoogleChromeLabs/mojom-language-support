@@ -53,7 +53,6 @@ where
     Ok((req.id, params))
 }
 
-// Foo
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponseMessage {
     pub id: u64,

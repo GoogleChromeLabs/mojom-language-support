@@ -8,10 +8,8 @@ use crate::protocol::{
     ErrorCodes, Message, NotificationMessage, RequestMessage, ResponseError,
 };
 
-use crate::definition;
-use crate::import::{check_imports, ImportedFiles};
+use crate::diagnostic::Diagnostic;
 use crate::messagesender::{MessageSender, MessageSenderThread};
-use crate::mojomast::MojomAst;
 
 #[derive(Debug)]
 pub enum Error {
@@ -41,27 +39,17 @@ enum State {
 
 struct ServerContext {
     state: State,
-    // Workspace root path.
-    root_path: std::path::PathBuf,
-    // True when the previous text document has errors.
-    has_error: bool,
-    // Contains the current document text and ast. None when the text is an
-    // invalid mojom.
-    ast: Option<MojomAst>,
-    // Parsed mojom files that are imported from the current document.
-    imported_files: Option<ImportedFiles>,
+    // Contains the current document and diagnostics information.
+    diag: Diagnostic,
     // Set when `exit` notification is received.
     exit_code: Option<i32>,
 }
 
 impl ServerContext {
-    fn new(root_path: PathBuf) -> ServerContext {
+    fn new(diag: Diagnostic) -> ServerContext {
         ServerContext {
             state: State::Initialized,
-            root_path: root_path,
-            has_error: false,
-            ast: None,
-            imported_files: None,
+            diag: diag,
             exit_code: None,
         }
     }
@@ -114,7 +102,7 @@ fn get_request_params<P: serde::de::DeserializeOwned>(
 
 fn handle_request(
     ctx: &mut ServerContext,
-    mut msg_sender: MessageSender,
+    msg_sender: MessageSender,
     msg: RequestMessage,
 ) -> std::result::Result<(), Error> {
     let id = msg.id;
@@ -130,7 +118,7 @@ fn handle_request(
         Initialize::METHOD => initialize_request(),
         Shutdown::METHOD => shutdown_request(ctx),
         GotoDefinition::METHOD => get_request_params(msg.params)
-            .and_then(|params| goto_definition_request(ctx, msg_sender.clone(), params)),
+            .and_then(|params| goto_definition_request(&mut ctx.diag, params)),
         _ => unimplemented_request(id, method),
     };
     match res {
@@ -167,104 +155,21 @@ fn shutdown_request(ctx: &mut ServerContext) -> RequestResult {
     Ok(Value::Null)
 }
 
-fn _get_offset_from_position(text: &str, pos: lsp_types::Position) -> usize {
-    let pos_line = pos.line as usize;
-    let pos_col = pos.character as usize;
-    let mut offset = 0;
-    for (i, line) in text.lines().enumerate() {
-        if i == pos_line {
-            break;
-        }
-        offset += line.len() + 1;
-    }
-    offset + pos_col
-}
-
-#[inline(always)]
-fn is_identifier_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || ch == '_' || ch == '.'
-}
-
-fn get_identifier(text: &str, pos: lsp_types::Position) -> &str {
-    // TODO: The current implementation isn't accurate.
-
-    let offset = _get_offset_from_position(text, pos);
-    let mut s = offset;
-    for ch in text[..offset].chars().rev() {
-        if !is_identifier_char(ch) {
-            break;
-        }
-        s -= 1;
-    }
-    let mut e = offset;
-    for ch in text[offset..].chars() {
-        if !is_identifier_char(ch) {
-            break;
-        }
-        e += 1;
-    }
-    &text[s..e]
-}
-
-fn find_definition_in_doc(ast: &MojomAst, ident: &str) -> Option<lsp_types::Location> {
-    definition::find_definition(ident, ast)
-}
-
-fn find_definition_in_imports(ctx: &ServerContext, ident: &str) -> Option<lsp_types::Location> {
-    ctx.imported_files
-        .as_ref()
-        .and_then(|ref imported_files| imported_files.find_definition(ident))
-}
-
-fn is_same_uri(ctx: &ServerContext, uri: &lsp_types::Url) -> bool {
-    if let Some(ref ast) = ctx.ast {
-        *uri == ast.uri
-    } else {
-        false
-    }
-}
-
-fn invalidate_context(ctx: &mut ServerContext, msg_sender: MessageSender, uri: &lsp_types::Url) {
-    // Invalidate the current document.
-    use std::io::Read;
-    let path = uri.to_file_path().unwrap();
-    let mut text = String::new();
-    std::fs::File::open(path)
-        .unwrap()
-        .read_to_string(&mut text)
-        .unwrap();
-
-    match _check_syntax(ctx, msg_sender, text, uri.clone()) {
-        Ok(_) => (),
-        Err(err) => {
-            // TODO: Should return an Err that indicates the file specified
-            // by `uri` isn't a vailid mojom file.
-            eprintln!("{:#?}", err);
-            unimplemented!();
-        }
-    }
-}
-
 fn goto_definition_request(
-    ctx: &mut ServerContext,
-    msg_sender: MessageSender,
+    diag: &mut Diagnostic,
     params: lsp_types::TextDocumentPositionParams,
 ) -> RequestResult {
-    if !is_same_uri(ctx, &params.text_document.uri) {
-        invalidate_context(ctx, msg_sender, &params.text_document.uri);
+    if !diag.is_same_uri(&params.text_document.uri) {
+        // TODO: Don't use unwrap().
+        diag.open(params.text_document.uri.clone()).unwrap();
     }
 
-    if let Some(ref ast) = &ctx.ast {
-        let ident = get_identifier(&ast.text, params.position);
-        let loc = find_definition_in_doc(ast, ident).or(find_definition_in_imports(ctx, ident));
-        let res = match loc {
-            Some(loc) => serde_json::to_value(loc).unwrap(),
-            None => Value::Null,
-        };
-        Ok(res)
-    } else {
-        Ok(Value::Null)
+    if let Some(loc) = diag.find_definition(&params.position) {
+        let res = serde_json::to_value(loc).unwrap();
+        return Ok(res);
     }
+
+    return Ok(Value::Null);
 }
 
 // Notifications
@@ -280,7 +185,6 @@ fn do_nothing(msg: &NotificationMessage) -> std::result::Result<(), Error> {
 
 fn handle_notification(
     ctx: &mut ServerContext,
-    msg_sender: MessageSender,
     msg: NotificationMessage,
 ) -> std::result::Result<(), Error> {
     let method = msg.method.as_str();
@@ -289,10 +193,12 @@ fn handle_notification(
     use lsp_types::notification::*;
     match msg.method.as_str() {
         Exit::METHOD => exit_notification(ctx),
-        DidOpenTextDocument::METHOD => get_params(msg.params)
-            .and_then(|params| did_open_text_document(ctx, msg_sender, params)),
-        DidChangeTextDocument::METHOD => get_params(msg.params)
-            .and_then(|params| did_change_text_document(ctx, msg_sender, params)),
+        DidOpenTextDocument::METHOD => {
+            get_params(msg.params).and_then(|params| did_open_text_document(ctx, params))
+        }
+        DidChangeTextDocument::METHOD => {
+            get_params(msg.params).and_then(|params| did_change_text_document(ctx, params))
+        }
         // Accept following notifications but do nothing.
         DidChangeConfiguration::METHOD => do_nothing(&msg),
         WillSaveTextDocument::METHOD => do_nothing(&msg),
@@ -302,96 +208,6 @@ fn handle_notification(
             Ok(())
         }
     }
-}
-
-fn publish_diagnotics(
-    mut msg_sender: MessageSender,
-    params: lsp_types::PublishDiagnosticsParams,
-) -> std::result::Result<(), Error> {
-    // TODO: Don't use unwrap().
-    let params = serde_json::to_value(&params).unwrap();
-    let msg = NotificationMessage {
-        method: "textDocument/publishDiagnostics".to_owned(),
-        params: params,
-    };
-    msg_sender.send_notification(msg);
-    Ok(())
-}
-
-fn convert_error_position(line_col: &mojom_syntax::LineColLocation) -> lsp_types::Range {
-    let (start, end) = match line_col {
-        mojom_syntax::LineColLocation::Pos((line, col)) => {
-            let start = lsp_types::Position {
-                line: *line as u64 - 1,
-                character: *col as u64 - 1,
-            };
-            // ???
-            let end = lsp_types::Position {
-                line: *line as u64 - 1,
-                character: *col as u64 - 1,
-            };
-            (start, end)
-        }
-        mojom_syntax::LineColLocation::Span(start, end) => {
-            // `start` and `end` are tuples like (line, col).
-            let start = lsp_types::Position {
-                line: start.0 as u64 - 1,
-                character: start.1 as u64 - 1,
-            };
-            let end = lsp_types::Position {
-                line: end.0 as u64 - 1,
-                character: end.1 as u64 - 1,
-            };
-            (start, end)
-        }
-    };
-    lsp_types::Range {
-        start: start,
-        end: end,
-    }
-}
-
-fn _check_syntax(
-    ctx: &mut ServerContext,
-    msg_sender: MessageSender,
-    text: String,
-    uri: lsp_types::Url,
-) -> std::result::Result<(), Error> {
-    match MojomAst::new(uri.clone(), text) {
-        Ok(ast) => {
-            ctx.ast = Some(ast);
-            let params = lsp_types::PublishDiagnosticsParams {
-                uri: uri,
-                diagnostics: vec![],
-            };
-            publish_diagnotics(msg_sender, params)?;
-            ctx.has_error = false;
-        }
-        Err(err) => {
-            let range = convert_error_position(&err.line_col);
-            let diagnostic = lsp_types::Diagnostic {
-                range: range,
-                severity: Some(lsp_types::DiagnosticSeverity::Error),
-                code: Some(lsp_types::NumberOrString::String("mojom".to_owned())),
-                source: Some("mojom-lsp".to_owned()),
-                message: err.to_string(),
-                related_information: None,
-            };
-            let params = lsp_types::PublishDiagnosticsParams {
-                uri: uri,
-                diagnostics: vec![diagnostic],
-            };
-            publish_diagnotics(msg_sender, params)?;
-            ctx.ast = None;
-            ctx.has_error = true;
-        }
-    }
-    // TODO: Tentative
-    if let Some(ast) = &ctx.ast {
-        let imported_files = check_imports(&ctx.root_path, ast);
-        ctx.imported_files = Some(imported_files);
-    }
-    Ok(())
 }
 
 fn exit_notification(ctx: &mut ServerContext) -> std::result::Result<(), Error> {
@@ -406,16 +222,15 @@ fn exit_notification(ctx: &mut ServerContext) -> std::result::Result<(), Error> 
 
 fn did_open_text_document(
     ctx: &mut ServerContext,
-    msg_sender: MessageSender,
     params: lsp_types::DidOpenTextDocumentParams,
 ) -> std::result::Result<(), Error> {
-    let uri = params.text_document.uri.clone();
-    _check_syntax(ctx, msg_sender, params.text_document.text, uri)
+    ctx.diag
+        .check(params.text_document.uri, params.text_document.text);
+    Ok(())
 }
 
 fn did_change_text_document(
     ctx: &mut ServerContext,
-    msg_sender: MessageSender,
     params: lsp_types::DidChangeTextDocumentParams,
 ) -> std::result::Result<(), Error> {
     let uri = params.text_document.uri.clone();
@@ -425,7 +240,8 @@ fn did_change_text_document(
         .map(|i| i.text.to_owned())
         .collect::<Vec<_>>();
     let text = content.join("");
-    _check_syntax(ctx, msg_sender, text, uri)
+    ctx.diag.check(uri, text);
+    Ok(())
 }
 
 // Initialization
@@ -491,7 +307,8 @@ pub fn start() -> std::result::Result<i32, Error> {
 
     let msg_sender_thread = MessageSenderThread::start(writer);
 
-    let mut ctx = ServerContext::new(root_path);
+    let diag = Diagnostic::new(root_path, msg_sender_thread.get_sender());
+    let mut ctx = ServerContext::new(diag);
 
     loop {
         eprintln!("Reading message...");
@@ -499,9 +316,7 @@ pub fn start() -> std::result::Result<i32, Error> {
         let msg_sender = msg_sender_thread.get_sender();
         match message {
             Message::Request(request) => handle_request(&mut ctx, msg_sender, request)?,
-            Message::Notofication(notification) => {
-                handle_notification(&mut ctx, msg_sender, notification)?
-            }
+            Message::Notofication(notification) => handle_notification(&mut ctx, notification)?,
             _ => unimplemented!(),
         };
 

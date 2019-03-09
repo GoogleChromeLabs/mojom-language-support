@@ -30,7 +30,7 @@ pub(crate) struct MessageSender {
 
 // TODO: Make sure using unwrap() makes sense.
 impl MessageSender {
-    pub(crate) fn send_success_response(&mut self, id: u64, res: Value) {
+    pub(crate) fn send_success_response(&self, id: u64, res: Value) {
         let msg = SendingMessage::SuccessResponse(SuccessResponse {
             id: id,
             result: res,
@@ -38,12 +38,12 @@ impl MessageSender {
         self.sender.send(msg).unwrap();
     }
 
-    pub(crate) fn send_error_response(&mut self, id: u64, err: ResponseError) {
+    pub(crate) fn send_error_response(&self, id: u64, err: ResponseError) {
         let msg = SendingMessage::ErrorResponse(ErrorResponse { id: id, err: err });
         self.sender.send(msg).unwrap();
     }
 
-    pub(crate) fn send_notification(&mut self, notif: NotificationMessage) {
+    pub(crate) fn send_notification(&self, notif: NotificationMessage) {
         let msg = SendingMessage::Notification(notif);
         self.sender.send(msg).unwrap();
     }

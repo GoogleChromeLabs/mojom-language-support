@@ -3,6 +3,7 @@ extern crate serde;
 extern crate serde_json;
 
 mod definition;
+mod diagnostic;
 mod import;
 mod messagesender;
 mod mojomast;
