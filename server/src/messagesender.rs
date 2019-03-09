@@ -55,34 +55,36 @@ pub(crate) struct MessageSenderThread {
 }
 
 impl MessageSenderThread {
-    pub(crate) fn start<W: Write + Send + 'static>(mut writer: W) -> Self {
-        let (sender, receiver) = channel();
-        let handle = thread::spawn(move || loop {
-            let msg = receiver.recv().unwrap();
-
-            // TODO: Check using unwrap() makes sense.
-            match msg {
-                SendingMessage::SuccessResponse(res) => {
-                    protocol::write_success_response(&mut writer, res.id, res.result).unwrap();
-                }
-                SendingMessage::ErrorResponse(res) => {
-                    protocol::write_error_response(&mut writer, res.id, res.err).unwrap();
-                }
-                SendingMessage::Notification(notif) => {
-                    protocol::write_notification(&mut writer, &notif.method, notif.params).unwrap();
-                }
-            };
-        });
-
-        MessageSenderThread {
-            sender: sender,
-            _handle: handle,
-        }
-    }
-
     pub(crate) fn get_sender(&self) -> MessageSender {
         MessageSender {
             sender: self.sender.clone(),
         }
+    }
+}
+
+pub(crate) fn start_message_sender_thread<W: Write + Send + 'static>(
+    mut writer: W,
+) -> MessageSenderThread {
+    let (sender, receiver) = channel();
+    let handle = thread::spawn(move || loop {
+        let msg = receiver.recv().unwrap();
+
+        // TODO: Check using unwrap() makes sense.
+        match msg {
+            SendingMessage::SuccessResponse(res) => {
+                protocol::write_success_response(&mut writer, res.id, res.result).unwrap();
+            }
+            SendingMessage::ErrorResponse(res) => {
+                protocol::write_error_response(&mut writer, res.id, res.err).unwrap();
+            }
+            SendingMessage::Notification(notif) => {
+                protocol::write_notification(&mut writer, &notif.method, notif.params).unwrap();
+            }
+        };
+    });
+
+    MessageSenderThread {
+        sender: sender,
+        _handle: handle,
     }
 }

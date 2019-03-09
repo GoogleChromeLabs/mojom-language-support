@@ -7,8 +7,8 @@ use crate::protocol::{
     self, read_message, ErrorCodes, Message, NotificationMessage, RequestMessage, ResponseError,
 };
 
-use crate::diagnostic::Diagnostic;
-use crate::messagesender::{MessageSender, MessageSenderThread};
+use crate::diagnostic::{start_diagnostics_thread, DiagnosticsThread};
+use crate::messagesender::{start_message_sender_thread, MessageSender};
 
 #[derive(Debug)]
 pub enum Error {
@@ -38,14 +38,14 @@ enum State {
 
 struct ServerContext {
     state: State,
-    // Contains the current document and diagnostics information.
-    diag: Diagnostic,
+    // A handler to the diagnostics thread.
+    diag: DiagnosticsThread,
     // Set when `exit` notification is received.
     exit_code: Option<i32>,
 }
 
 impl ServerContext {
-    fn new(diag: Diagnostic) -> ServerContext {
+    fn new(diag: DiagnosticsThread) -> ServerContext {
         ServerContext {
             state: State::Initialized,
             diag: diag,
@@ -119,19 +119,13 @@ fn shutdown_request(ctx: &mut ServerContext) -> RequestResult {
 }
 
 fn goto_definition_request(
-    diag: &mut Diagnostic,
+    diag: &mut DiagnosticsThread,
     params: lsp_types::TextDocumentPositionParams,
 ) -> RequestResult {
-    if !diag.is_same_uri(&params.text_document.uri) {
-        // TODO: Don't use unwrap().
-        diag.open(params.text_document.uri.clone()).unwrap();
-    }
-
-    if let Some(loc) = diag.find_definition(&params.position) {
+    if let Some(loc) = diag.goto_definition(params.text_document.uri, params.position) {
         let res = serde_json::to_value(loc).unwrap();
         return Ok(res);
     }
-
     return Ok(Value::Null);
 }
 
@@ -231,11 +225,10 @@ pub fn start() -> std::result::Result<i32, Error> {
     let root_path = get_root_path(&params);
     eprintln!("root_path: {:?}", root_path);
 
-    let msg_sender_thread = MessageSenderThread::start(writer);
+    let msg_sender_thread = start_message_sender_thread(writer);
+    let diag = start_diagnostics_thread(root_path, msg_sender_thread.get_sender());
 
-    let diag = Diagnostic::new(root_path, msg_sender_thread.get_sender());
     let mut ctx = ServerContext::new(diag);
-
     loop {
         eprintln!("Reading message...");
         let message = read_message(&mut reader)?;
