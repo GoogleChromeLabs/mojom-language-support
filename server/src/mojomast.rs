@@ -1,4 +1,5 @@
-use mojom_syntax::{self, parse, Module, MojomFile, ParseError, Statement};
+use mojom_syntax::Error as ParseError;
+use mojom_syntax::{self, parse, Module, MojomFile, Statement};
 
 #[derive(Debug)]
 pub(crate) struct MojomAst {

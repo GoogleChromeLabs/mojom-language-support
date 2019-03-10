@@ -1,7 +1,5 @@
 use pest::{Parser, Position, Span};
 
-use crate::Error;
-
 #[derive(Parser)]
 #[grammar = "mojom.pest"]
 struct MojomParser;
@@ -441,9 +439,64 @@ fn into_mojom_file(pairs: Pairs) -> MojomFile {
     MojomFile { stmts: stmts }
 }
 
-pub type ParseError = Error<Rule>;
+type PestError = pest::error::Error<Rule>;
 
-pub fn parse(input: &str) -> Result<MojomFile, ParseError> {
+/// Represents a syntax error.
+#[derive(Debug)]
+pub struct Error(PestError);
+
+/// Zero-based line/column in a text.
+pub struct LineCol {
+    pub line: usize,
+    pub col: usize,
+}
+
+impl Error {
+    /// Returns `start` and `end` positions of the error.
+    pub fn range(&self) -> (LineCol, LineCol) {
+        match &self.0.line_col {
+            pest::error::LineColLocation::Pos((line, col)) => {
+                let start = LineCol {
+                    line: *line - 1,
+                    col: *col - 1,
+                };
+                // ???
+                let end = LineCol {
+                    line: *line - 1,
+                    col: *col - 1,
+                };
+                (start, end)
+            }
+            pest::error::LineColLocation::Span(start, end) => {
+                // `start` and `end` are tuples like (line, col).
+                let start = LineCol {
+                    line: start.0 - 1,
+                    col: start.1 - 1,
+                };
+                let end = LineCol {
+                    line: end.0 - 1,
+                    col: end.1 - 1,
+                };
+                (start, end)
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<PestError> for Error {
+    fn from(err: PestError) -> Error {
+        Error(err)
+    }
+}
+
+/// Parses `input` into a syntax tree.
+pub fn parse(input: &str) -> Result<MojomFile, Error> {
     let parsed = MojomParser::parse(Rule::mojom_file, &input)?
         .next()
         .unwrap()
@@ -452,6 +505,7 @@ pub fn parse(input: &str) -> Result<MojomFile, ParseError> {
     Ok(mojom)
 }
 
+/// Converts `offset` to (line, column) position in `text`.
 pub fn line_col(text: &str, offset: usize) -> Option<(usize, usize)> {
     Position::new(text, offset).map(|p| p.line_col())
 }

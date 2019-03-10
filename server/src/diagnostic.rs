@@ -147,7 +147,8 @@ impl Diagnostic {
             }
             Err(err) => {
                 self.ast = None;
-                let range = convert_error_position(&err.line_col);
+                let (start, end) = err.range();
+                let range = into_lsp_range(&start, &end);
                 let diagnostic = lsp_types::Diagnostic {
                     range: range,
                     severity: Some(lsp_types::DiagnosticSeverity::Error),
@@ -174,36 +175,10 @@ impl Diagnostic {
     }
 }
 
-fn convert_error_position(line_col: &mojom_syntax::LineColLocation) -> lsp_types::Range {
-    let (start, end) = match line_col {
-        mojom_syntax::LineColLocation::Pos((line, col)) => {
-            let start = lsp_types::Position {
-                line: *line as u64 - 1,
-                character: *col as u64 - 1,
-            };
-            // ???
-            let end = lsp_types::Position {
-                line: *line as u64 - 1,
-                character: *col as u64 - 1,
-            };
-            (start, end)
-        }
-        mojom_syntax::LineColLocation::Span(start, end) => {
-            // `start` and `end` are tuples like (line, col).
-            let start = lsp_types::Position {
-                line: start.0 as u64 - 1,
-                character: start.1 as u64 - 1,
-            };
-            let end = lsp_types::Position {
-                line: end.0 as u64 - 1,
-                character: end.1 as u64 - 1,
-            };
-            (start, end)
-        }
-    };
+fn into_lsp_range(start: &mojom_syntax::LineCol, end: &mojom_syntax::LineCol) -> lsp_types::Range {
     lsp_types::Range {
-        start: start,
-        end: end,
+        start: lsp_types::Position::new(start.line as u64, start.col as u64),
+        end: lsp_types::Position::new(end.line as u64, end.col as u64),
     }
 }
 
