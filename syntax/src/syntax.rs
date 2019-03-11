@@ -495,13 +495,26 @@ impl From<PestError> for Error {
     }
 }
 
+fn parse_input(input: &str) -> Result<Pairs, PestError> {
+    MojomParser::parse(Rule::mojom_file, input).map_err(|err| {
+        err.renamed_rules(|rule| match rule {
+            Rule::mojom_file => "statement".to_owned(),
+            // TODO: Rename more tokens.
+            Rule::t_semicolon => "';'".to_owned(),
+            _ => format!("{:?}", rule),
+        })
+    })
+}
+
+fn build_syntax_tree(mut pairs: Pairs) -> MojomFile {
+    let inner = pairs.next().unwrap().into_inner();
+    into_mojom_file(inner)
+}
+
 /// Parses `input` into a syntax tree.
 pub fn parse(input: &str) -> Result<MojomFile, Error> {
-    let parsed = MojomParser::parse(Rule::mojom_file, &input)?
-        .next()
-        .unwrap()
-        .into_inner();
-    let mojom = into_mojom_file(parsed);
+    let pairs = parse_input(input)?;
+    let mojom = build_syntax_tree(pairs);
     Ok(mojom)
 }
 
