@@ -87,6 +87,7 @@ fn into_const(mut pairs: Pairs) -> Const {
     let pair = pairs.next().unwrap();
     let typ = pair.as_span().into();
     let name = consume_as_range(&mut pairs);
+    consume_token(Rule::t_equal, &mut pairs);
     let value = consume_as_range(&mut pairs);
     consume_semicolon(&mut pairs);
     Const {
@@ -105,7 +106,11 @@ pub struct EnumValue {
 fn into_enum_value(mut pairs: Pairs) -> EnumValue {
     skip_attribute_list(&mut pairs);
     let name = consume_as_range(&mut pairs);
-    let value = pairs.next().map(|value| value.as_span().into());
+    // The next item should be t_equal when it's Some(item).
+    if let Some(item) = pairs.next() {
+        assert!(item.as_rule() == Rule::t_equal);
+    }
+    let value = pairs.next().map(|item| item.as_span().into());
     EnumValue {
         name: name,
         value: value,
@@ -130,6 +135,7 @@ fn into_enum(mut pairs: Pairs) -> Enum {
                 for item in pairs {
                     let value = match item.as_rule() {
                         Rule::enum_value => into_enum_value(item.into_inner()),
+                        Rule::t_comma => continue,
                         Rule::t_rbrace => break,
                         _ => unreachable!(),
                     };
@@ -167,7 +173,11 @@ fn into_struct_field(mut pairs: Pairs) -> StructField {
     for item in pairs {
         match item.as_rule() {
             Rule::ordinal_value => res.ordinal = Some(item.as_span().into()),
-            Rule::default => res.default = Some(item.as_span().into()),
+            Rule::default => {
+                let mut pairs = item.into_inner();
+                consume_token(Rule::t_equal, &mut pairs);
+                res.default = Some(pairs.next().unwrap().as_span().into());
+            }
             Rule::t_semicolon => break,
             _ => unreachable!(),
         }
@@ -310,6 +320,7 @@ fn parameter_list(mut pairs: Pairs) -> Vec<Parameter> {
     for item in pairs {
         let param = match item.as_rule() {
             Rule::parameter => into_parameter(item.into_inner()),
+            Rule::t_comma => continue,
             Rule::t_rparen => break,
             _ => unreachable!(),
         };
@@ -345,7 +356,14 @@ fn into_method(mut pairs: Pairs) -> Method {
         _ => None,
     };
     let params = parameter_list(pairs.next().unwrap().into_inner());
-    let response = pairs.next().map(|res| into_response(res.into_inner()));
+    let mut response = None;
+    for item in pairs {
+        match item.as_rule() {
+            Rule::response => response = Some(into_response(item.into_inner())),
+            Rule::t_semicolon => break,
+            _ => unreachable!(),
+        }
+    }
     Method {
         name: name,
         ordinal: ordinal,
@@ -507,7 +525,17 @@ fn parse_input(input: &str) -> Result<Pairs, PestError> {
         err.renamed_rules(|rule| match rule {
             Rule::EOI => "'End of File'".to_owned(),
             Rule::mojom_file => "statement".to_owned(),
+            Rule::t_module => "module".to_owned(),
+            Rule::t_import => "import".to_owned(),
+            Rule::t_struct => "struct".to_owned(),
+            Rule::t_interface => "interface".to_owned(),
+            Rule::t_union => "union".to_owned(),
+            Rule::t_const => "const".to_owned(),
+            Rule::t_array => "array".to_owned(),
+            Rule::t_map => "map".to_owned(),
+            Rule::t_comma => "','".to_owned(),
             Rule::t_semicolon => "';'".to_owned(),
+            Rule::t_equal => "'='".to_owned(),
             Rule::t_arrow => "'=>'".to_owned(),
             Rule::t_lparen => "'('".to_owned(),
             Rule::t_rparen => "')'".to_owned(),
@@ -515,6 +543,8 @@ fn parse_input(input: &str) -> Result<Pairs, PestError> {
             Rule::t_rbrace => "'}'".to_owned(),
             Rule::t_lbracket => "'['".to_owned(),
             Rule::t_rbracket => "']'".to_owned(),
+            Rule::t_langlebracket => "'<'".to_owned(),
+            Rule::t_ranglebracket => "'>'".to_owned(),
             _ => format!("{:?}", rule),
         })
     })

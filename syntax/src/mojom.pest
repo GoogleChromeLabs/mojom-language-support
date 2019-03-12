@@ -27,9 +27,9 @@ import_stmt = { attribute_section? ~ t_import ~ string_literal ~ t_semicolon }
 
 attribute_section = {
   t_lbracket ~ t_rbracket |
-  t_lbracket ~ attribute ~ ("," ~ attribute)* ~ t_rbracket
+  t_lbracket ~ attribute ~ (t_comma ~ attribute)* ~ t_rbracket
 }
-attribute = { name ~ "=" ~ name | name ~ "=" ~ literal | name }
+attribute = { name ~ t_equal ~ name | name ~ t_equal ~ literal | name }
 
 struct_stmt = { attribute_section? ~ t_struct ~ name ~ struct_body? ~ t_semicolon }
 struct_body = { t_lbrace ~ struct_item* ~ t_rbrace }
@@ -39,7 +39,7 @@ struct_item = {
   struct_field
 }
 struct_field = { attribute_section? ~ type_spec ~ name ~ ordinal_value? ~ default? ~ t_semicolon }
-default = { "=" ~ constant }
+default = { t_equal ~ constant }
 
 union_stmt = {
   attribute_section? ~
@@ -79,29 +79,29 @@ numeric_type = {
   "bool" | "int8" | "uint8" | "int16" | "uint16" | "int32" | "uint32" |
   "int64" | "uint64" | "float" | "double"
 }
-handle_type = { "handle" ~ ("<" ~ specific_handle_type ~ ">")? }
+handle_type = { "handle" ~ (t_langlebracket ~ specific_handle_type ~ t_ranglebracket)? }
 specific_handle_type = {
   "message_pipe" | "shared_buffer" | "data_pipe_consumer" |
   "data_pipe_producer"
 }
-array = { "array" ~ "<" ~ type_spec ~ ">" }
-fixed_array = { "array" ~ "<" ~ type_spec ~ "," ~ int_const_dec ~ ">" }
-map = { "map" ~ "<" ~ identifier ~ "," ~ type_spec ~ ">" }
+array = { t_array ~ t_langlebracket ~ type_spec ~ t_ranglebracket }
+fixed_array = { t_array ~ t_langlebracket ~ type_spec ~ t_comma ~ int_const_dec ~ t_ranglebracket }
+map = { t_map ~ t_langlebracket ~ identifier ~ t_comma ~ type_spec ~ t_ranglebracket }
 interface_request = {
   "associated" ~ identifier ~ "&" |
   identifier ~ "&"
 }
 
 const_stmt = {
-  attribute_section? ~ t_const ~ type_spec ~ name ~ "=" ~ constant ~ t_semicolon
+  attribute_section? ~ t_const ~ type_spec ~ name ~ t_equal ~ constant ~ t_semicolon
 }
 constant = { (literal | identifier) }
 
 enum_stmt = { attribute_section? ~ "enum" ~ name ~ enum_block? ~ t_semicolon }
-enum_block = { t_lbrace ~ enum_value? ~ ("," ~ enum_value)* ~ ","? ~ t_rbrace }
+enum_block = { t_lbrace ~ enum_value? ~ (t_comma ~ enum_value)* ~ t_comma? ~ t_rbrace }
 enum_value = {
-  attribute_section? ~ name ~ "=" ~ integer |
-  attribute_section? ~ name ~ "=" ~ identifier |
+  attribute_section? ~ name ~ t_equal ~ integer |
+  attribute_section? ~ name ~ t_equal ~ identifier |
   attribute_section? ~ name
 }
 
@@ -111,11 +111,11 @@ method_stmt = {
   ordinal_value? ~
   parameter_list ~
   response? ~
-  ";"
+  t_semicolon
 }
 parameter_list = {
   t_lparen ~ t_rparen |
-  t_lparen ~ parameter ~ ("," ~ parameter)* ~ t_rparen
+  t_lparen ~ parameter ~ (t_comma ~ parameter)* ~ t_rparen
 }
 parameter = { attribute_section? ~ type_spec ~ name ~ ordinal_value? }
 response = { t_arrow ~ parameter_list }
@@ -165,7 +165,11 @@ t_struct = { "struct" }
 t_interface = { "interface" }
 t_union = { "union" }
 t_const = { "const" }
+t_array = { "array" }
+t_map = { "map" }
+t_comma = { "," }
 t_semicolon = { ";" }
+t_equal = { "=" }
 t_arrow = { "=>" }
 t_lparen = { "(" }
 t_rparen = { ")" }
@@ -173,3 +177,5 @@ t_lbrace = { "{" }
 t_rbrace = { "}" }
 t_lbracket = { "[" }
 t_rbracket = { "]" }
+t_langlebracket = { "<" }
+t_ranglebracket = { ">" }
