@@ -26,8 +26,8 @@ module_stmt = { attribute_section? ~ "module" ~ identifier ~ t_semicolon }
 import_stmt = { attribute_section? ~ "import" ~ string_literal ~ t_semicolon }
 
 attribute_section = {
-  "[" ~ "]" |
-  "[" ~ attribute ~ ("," ~ attribute)* ~ "]"
+  t_lbracket ~ t_rbracket |
+  t_lbracket ~ attribute ~ ("," ~ attribute)* ~ t_rbracket
 }
 attribute = { name ~ "=" ~ name | name ~ "=" ~ literal | name }
 
@@ -165,3 +165,5 @@ t_lparen = { "(" }
 t_rparen = { ")" }
 t_lbrace = { "{" }
 t_rbrace = { "}" }
+t_lbracket = { "[" }
+t_rbracket = { "]" }

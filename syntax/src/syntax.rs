@@ -496,11 +496,19 @@ impl From<PestError> for Error {
 }
 
 fn parse_input(input: &str) -> Result<Pairs, PestError> {
+    // TODO: Don't treat EOI as an error.
     MojomParser::parse(Rule::mojom_file, input).map_err(|err| {
         err.renamed_rules(|rule| match rule {
+            Rule::EOI => "'End of File'".to_owned(),
             Rule::mojom_file => "statement".to_owned(),
-            // TODO: Rename more tokens.
             Rule::t_semicolon => "';'".to_owned(),
+            Rule::t_arrow => "'=>'".to_owned(),
+            Rule::t_lparen => "')'".to_owned(),
+            Rule::t_rparen => "'('".to_owned(),
+            Rule::t_lbrace => "'}'".to_owned(),
+            Rule::t_rbrace => "'{'".to_owned(),
+            Rule::t_lbracket => "'['".to_owned(),
+            Rule::t_rbracket => "']'".to_owned(),
             _ => format!("{:?}", rule),
         })
     })
