@@ -22,8 +22,8 @@ statement = {
   const_stmt
 }
 
-module_stmt = { attribute_section? ~ "module" ~ identifier ~ t_semicolon }
-import_stmt = { attribute_section? ~ "import" ~ string_literal ~ t_semicolon }
+module_stmt = { attribute_section? ~ t_module ~ identifier ~ t_semicolon }
+import_stmt = { attribute_section? ~ t_import ~ string_literal ~ t_semicolon }
 
 attribute_section = {
   t_lbracket ~ t_rbracket |
@@ -31,7 +31,7 @@ attribute_section = {
 }
 attribute = { name ~ "=" ~ name | name ~ "=" ~ literal | name }
 
-struct_stmt = { attribute_section? ~ "struct" ~ name ~ struct_body? ~ t_semicolon }
+struct_stmt = { attribute_section? ~ t_struct ~ name ~ struct_body? ~ t_semicolon }
 struct_body = { t_lbrace ~ struct_item* ~ t_rbrace }
 struct_item = {
   const_stmt |
@@ -43,7 +43,7 @@ default = { "=" ~ constant }
 
 union_stmt = {
   attribute_section? ~
-  "union" ~
+  t_union ~
   name ~
   t_lbrace ~
   union_field* ~
@@ -54,7 +54,7 @@ union_field = { attribute_section? ~ type_spec ~ name ~ ordinal_value? ~ t_semic
 
 interface = {
   attribute_section? ~
-  "interface" ~
+  t_interface ~
   name ~
   t_lbrace ~
   interface_body* ~
@@ -93,7 +93,7 @@ interface_request = {
 }
 
 const_stmt = {
-  attribute_section? ~ "const" ~ type_spec ~ name ~ "=" ~ constant ~ t_semicolon
+  attribute_section? ~ t_const ~ type_spec ~ name ~ "=" ~ constant ~ t_semicolon
 }
 constant = { (literal | identifier) }
 
@@ -159,6 +159,12 @@ string_char = {
 
 // These aren't strictly needed to parse but useful to generate meaningful
 // error messages.
+t_module = { "module" }
+t_import = { "import" }
+t_struct = { "struct" }
+t_interface = { "interface" }
+t_union = { "union" }
+t_const = { "const" }
 t_semicolon = { ";" }
 t_arrow = { "=>" }
 t_lparen = { "(" }

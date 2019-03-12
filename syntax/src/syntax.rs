@@ -55,6 +55,7 @@ pub struct Module {
 
 fn into_module(mut pairs: Pairs) -> Module {
     skip_attribute_list(&mut pairs);
+    consume_token(Rule::t_module, &mut pairs);
     let name = consume_as_range(&mut pairs);
     consume_semicolon(&mut pairs);
     Module { name: name }
@@ -67,6 +68,7 @@ pub struct Import {
 
 fn into_import(mut pairs: Pairs) -> Import {
     skip_attribute_list(&mut pairs);
+    consume_token(Rule::t_import, &mut pairs);
     let path = consume_as_range(&mut pairs);
     consume_semicolon(&mut pairs);
     Import { path: path }
@@ -81,6 +83,7 @@ pub struct Const {
 
 fn into_const(mut pairs: Pairs) -> Const {
     skip_attribute_list(&mut pairs);
+    consume_token(Rule::t_const, &mut pairs);
     let pair = pairs.next().unwrap();
     let typ = pair.as_span().into();
     let name = consume_as_range(&mut pairs);
@@ -207,6 +210,7 @@ fn into_struct_members(mut pairs: Pairs) -> Vec<StructBody> {
 
 fn into_struct(mut pairs: Pairs) -> Struct {
     skip_attribute_list(&mut pairs);
+    consume_token(Rule::t_struct, &mut pairs);
     let name = consume_as_range(&mut pairs);
     let item = pairs.next().unwrap();
     match item.as_rule() {
@@ -262,6 +266,7 @@ pub struct Union {
 
 fn into_union(mut pairs: Pairs) -> Union {
     skip_attribute_list(&mut pairs);
+    consume_token(Rule::t_union, &mut pairs);
     let name = consume_as_range(&mut pairs);
     consume_token(Rule::t_lbrace, &mut pairs);
     let mut fields = Vec::new();
@@ -374,6 +379,7 @@ pub struct Interface {
 
 fn into_interface(mut pairs: Pairs) -> Interface {
     skip_attribute_list(&mut pairs);
+    consume_token(Rule::t_interface, &mut pairs);
     let name = consume_as_range(&mut pairs);
     consume_token(Rule::t_lbrace, &mut pairs);
     let mut members = Vec::new();
@@ -503,10 +509,10 @@ fn parse_input(input: &str) -> Result<Pairs, PestError> {
             Rule::mojom_file => "statement".to_owned(),
             Rule::t_semicolon => "';'".to_owned(),
             Rule::t_arrow => "'=>'".to_owned(),
-            Rule::t_lparen => "')'".to_owned(),
-            Rule::t_rparen => "'('".to_owned(),
-            Rule::t_lbrace => "'}'".to_owned(),
-            Rule::t_rbrace => "'{'".to_owned(),
+            Rule::t_lparen => "'('".to_owned(),
+            Rule::t_rparen => "')'".to_owned(),
+            Rule::t_lbrace => "'{'".to_owned(),
+            Rule::t_rbrace => "'}'".to_owned(),
             Rule::t_lbracket => "'['".to_owned(),
             Rule::t_rbracket => "']'".to_owned(),
             _ => format!("{:?}", rule),
