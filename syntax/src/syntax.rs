@@ -6,7 +6,7 @@ struct MojomParser;
 
 type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Range {
     pub start: usize,
     pub end: usize,
@@ -48,7 +48,7 @@ fn consume_as_range(pairs: &mut Pairs) -> Range {
     pairs.next().unwrap().as_span().into()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Module {
     pub name: Range,
 }
@@ -61,7 +61,7 @@ fn into_module(mut pairs: Pairs) -> Module {
     Module { name: name }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Import {
     pub path: Range,
 }
@@ -74,7 +74,7 @@ fn into_import(mut pairs: Pairs) -> Import {
     Import { path: path }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Const {
     pub typ: Range,
     pub name: Range,
@@ -97,7 +97,7 @@ fn into_const(mut pairs: Pairs) -> Const {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct EnumValue {
     pub name: Range,
     pub value: Option<Range>,
@@ -117,7 +117,7 @@ fn into_enum_value(mut pairs: Pairs) -> EnumValue {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Enum {
     pub name: Range,
     pub values: Vec<EnumValue>,
@@ -152,7 +152,7 @@ fn into_enum(mut pairs: Pairs) -> Enum {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct StructField {
     typ: Range,
     name: Range,
@@ -185,14 +185,14 @@ fn into_struct_field(mut pairs: Pairs) -> StructField {
     res
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum StructBody {
     Const(Const),
     Enum(Enum),
     Field(StructField),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Struct {
     pub name: Range,
     pub members: Vec<StructBody>,
@@ -242,7 +242,7 @@ fn into_struct(mut pairs: Pairs) -> Struct {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct UnionField {
     pub typ: Range,
     pub name: Range,
@@ -268,7 +268,7 @@ fn into_union_field(mut pairs: Pairs) -> UnionField {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Union {
     pub name: Range,
     pub fields: Vec<UnionField>,
@@ -296,7 +296,7 @@ fn into_union(mut pairs: Pairs) -> Union {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Parameter {
     pub typ: Range,
     pub name: Range,
@@ -329,7 +329,7 @@ fn parameter_list(mut pairs: Pairs) -> Vec<Parameter> {
     params
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Response {
     pub params: Vec<Parameter>,
 }
@@ -340,7 +340,7 @@ fn into_response(mut pairs: Pairs) -> Response {
     Response { params: params }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Method {
     pub name: Range,
     pub ordinal: Option<Range>,
@@ -372,7 +372,7 @@ fn into_method(mut pairs: Pairs) -> Method {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum InterfaceMember {
     Const(Const),
     Enum(Enum),
@@ -389,7 +389,7 @@ fn into_interface_member(mut pairs: Pairs) -> InterfaceMember {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Interface {
     pub name: Range,
     pub members: Vec<InterfaceMember>,
@@ -420,7 +420,7 @@ fn into_interface(mut pairs: Pairs) -> Interface {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Module(Module),
     Import(Import),
@@ -445,7 +445,7 @@ fn into_statement(mut pairs: Pairs) -> Statement {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct MojomFile {
     pub stmts: Vec<Statement>,
 }
