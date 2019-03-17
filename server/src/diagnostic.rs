@@ -231,7 +231,7 @@ fn get_identifier<'a>(text: &'a str, pos: &lsp_types::Position) -> &'a str {
 }
 
 fn find_definition_in_doc(ast: &MojomAst, ident: &str) -> Option<lsp_types::Location> {
-    crate::definition::find_definition(ident, ast)
+    crate::definition::find_definition_preorder(ident, ast)
 }
 
 fn find_definition_in_imported_files(

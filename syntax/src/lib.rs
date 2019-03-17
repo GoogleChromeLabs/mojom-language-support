@@ -6,5 +6,5 @@ mod traverse;
 mod visitor;
 
 pub use syntax::*;
-pub use traverse::preorder;
+pub use traverse::{Traversal, preorder};
 pub use visitor::{Element, Visitor};

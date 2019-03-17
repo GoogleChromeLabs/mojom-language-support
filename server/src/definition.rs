@@ -1,6 +1,6 @@
 use lsp_types::{Location, Position, Range};
 
-use mojom_syntax::{Element, Visitor};
+use mojom_syntax::{preorder, Traversal};
 
 use crate::mojomast::MojomAst;
 
@@ -12,72 +12,55 @@ pub(crate) fn create_lsp_range(ast: &MojomAst, field: &mojom_syntax::Range) -> R
     Range::new(start, end)
 }
 
-struct DefinitionVisitor<'a> {
+fn match_field<'a, 'b, 'c>(
+    target: &'a str,
+    field: &'b mojom_syntax::Range,
     ast: &'a MojomAst,
-    ident: &'a str,
-    path: Vec<&'a str>,
-    found: Option<Location>,
+    path: &'c mut Vec<&'a str>,
+) -> Option<Location> {
+    let name = ast.text(field);
+    path.push(name);
+    let ident = path.join(".");
+    path.pop();
+    if ident == target {
+        let range = create_lsp_range(ast, field);
+        return Some(Location::new(ast.uri.clone(), range));
+    }
+    None
 }
 
-impl<'a> DefinitionVisitor<'a> {
-    fn match_field(&mut self, field: &mojom_syntax::Range) {
-        assert!(self.found.is_none());
-        let name = self.ast.text(field);
-        self.path.push(name);
-        let ident = self.path.join(".");
-        self.path.pop();
-        if ident == self.ident {
-            let range = create_lsp_range(self.ast, field);
-            self.found = Some(Location::new(self.ast.uri.clone(), range));
+pub(crate) fn find_definition_preorder(ident: &str, ast: &MojomAst) -> Option<Location> {
+    let mut path = Vec::new();
+    for traversal in preorder(&ast.mojom) {
+        let loc = match traversal {
+            Traversal::EnterInterface(node) => {
+                let loc = match_field(ident, &node.name, ast, &mut path);
+                let name = ast.text(&node.name);
+                path.push(name);
+                loc
+            }
+            Traversal::LeaveInterface(_) => {
+                path.pop();
+                None
+            }
+            Traversal::EnterStruct(node) => {
+                let loc = match_field(ident, &node.name, ast, &mut path);
+                let name = ast.text(&node.name);
+                path.push(name);
+                loc
+            }
+            Traversal::LeaveStruct(_) => {
+                path.pop();
+                None
+            }
+            Traversal::Union(node) => match_field(ident, &node.name, ast, &mut path),
+            Traversal::Enum(node) => match_field(ident, &node.name, ast, &mut path),
+            Traversal::Const(node) => match_field(ident, &node.name, ast, &mut path),
+            _ => None,
+        };
+        if loc.is_some() {
+            return loc;
         }
     }
-}
-
-impl<'a> Visitor for DefinitionVisitor<'a> {
-    fn is_done(&self) -> bool {
-        self.found.is_some()
-    }
-
-    fn visit_interface(&mut self, elem: &mojom_syntax::Interface) {
-        self.match_field(&elem.name);
-        let name = self.ast.text(&elem.name);
-        self.path.push(name);
-    }
-
-    fn leave_interface(&mut self, _: &mojom_syntax::Interface) {
-        self.path.pop();
-    }
-
-    fn visit_struct(&mut self, elem: &mojom_syntax::Struct) {
-        self.match_field(&elem.name);
-        let name = self.ast.text(&elem.name);
-        self.path.push(name);
-    }
-
-    fn leave_struct(&mut self, _: &mojom_syntax::Struct) {
-        self.path.pop();
-    }
-
-    fn visit_union(&mut self, elem: &mojom_syntax::Union) {
-        self.match_field(&elem.name);
-    }
-
-    fn visit_enum(&mut self, elem: &mojom_syntax::Enum) {
-        self.match_field(&elem.name);
-    }
-
-    fn visit_const(&mut self, elem: &mojom_syntax::Const) {
-        self.match_field(&elem.name);
-    }
-}
-
-pub(crate) fn find_definition(ident: &str, ast: &MojomAst) -> Option<Location> {
-    let mut v = DefinitionVisitor {
-        ast: ast,
-        ident: ident,
-        path: Vec::new(),
-        found: None,
-    };
-    ast.mojom.accept(&mut v);
-    v.found
+    None
 }
