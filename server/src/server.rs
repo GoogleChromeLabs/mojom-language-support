@@ -1,4 +1,4 @@
-use std::io::{self, BufReader, BufWriter};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::PathBuf;
 
 use serde_json::Value;
@@ -209,9 +209,13 @@ fn get_root_path(params: &lsp_types::InitializeParams) -> PathBuf {
 }
 
 // Returns exit code.
-pub fn start() -> std::result::Result<i32, ServerError> {
-    let mut reader = BufReader::new(io::stdin());
-    let mut writer = BufWriter::new(io::stdout());
+pub fn start<R, W>(reader: R, writer: W) -> std::result::Result<i32, ServerError>
+where
+    R: Read,
+    W: Write + Send + 'static,
+{
+    let mut reader = BufReader::new(reader);
+    let mut writer = BufWriter::new(writer);
 
     let params = crate::initialization::initialize(&mut reader, &mut writer)?;
 
