@@ -24,11 +24,16 @@ enum DiagnosticMessage {
 }
 
 pub(crate) struct DiagnosticsThread {
-    _handle: JoinHandle<()>,
+    handle: JoinHandle<()>,
     sender: Sender<DiagnosticMessage>,
 }
 
 impl DiagnosticsThread {
+    #[allow(unused)]
+    pub(crate) fn join(self) {
+        self.handle.join().unwrap();
+    }
+
     pub(crate) fn check(&self, uri: Uri, text: String) {
         self.sender
             .send(DiagnosticMessage::CheckSyntax((uri, text)))
@@ -56,7 +61,11 @@ pub(crate) fn start_diagnostics_thread(
     let mut diag = Diagnostic::new(root_path, msg_sender);
     let (sender, receiver) = channel::<DiagnosticMessage>();
     let handle = thread::spawn(move || loop {
-        let msg = receiver.recv().unwrap();
+        let msg = match receiver.recv() {
+            Ok(msg) => msg,
+            Err(_) => break,
+        };
+
         match msg {
             DiagnosticMessage::CheckSyntax((uri, text)) => {
                 diag.check(uri, text);
@@ -69,7 +78,7 @@ pub(crate) fn start_diagnostics_thread(
     });
 
     DiagnosticsThread {
-        _handle: handle,
+        handle: handle,
         sender: sender,
     }
 }

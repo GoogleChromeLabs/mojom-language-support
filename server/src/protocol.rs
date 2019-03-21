@@ -44,6 +44,30 @@ pub(crate) struct ResponseMessage {
     pub error: Option<ResponseError>,
 }
 
+#[derive(Serialize)]
+pub(crate) struct JsonRpcRequestMessage<'a> {
+    jsonrpc: &'a str,
+    id: u64,
+    method: &'a str,
+    params: Value,
+}
+
+#[allow(unused)]
+pub(crate) fn write_request(
+    writer: &mut impl Write,
+    id: u64,
+    method: &str,
+    params: Value,
+) -> Result<()> {
+    let message = JsonRpcRequestMessage {
+        jsonrpc: "2.0",
+        id: id,
+        method: method,
+        params: params,
+    };
+    write_message(writer, message)
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ResponseError {
     pub code: i32,
@@ -106,6 +130,7 @@ pub(crate) struct NotificationMessage {
 }
 
 // https://microsoft.github.io/language-server-protocol/specification#header-part
+#[derive(Debug)]
 struct Header {
     pub content_length: usize,
 }
@@ -145,7 +170,7 @@ fn read_header(reader: &mut impl io::BufRead) -> io::Result<Header> {
         .map(|n| Header { content_length: n })
         .ok_or(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "No content type",
+            "No content length",
         ))
 }
 

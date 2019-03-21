@@ -50,10 +50,15 @@ impl MessageSender {
 
 pub(crate) struct MessageSenderThread {
     sender: Sender<SendingMessage>,
-    _handle: thread::JoinHandle<()>,
+    handle: thread::JoinHandle<()>,
 }
 
 impl MessageSenderThread {
+    #[allow(unused)]
+    pub(crate) fn join(self) {
+        self.handle.join().unwrap();
+    }
+
     pub(crate) fn get_sender(&self) -> MessageSender {
         MessageSender {
             sender: self.sender.clone(),
@@ -66,9 +71,10 @@ pub(crate) fn start_message_sender_thread<W: Write + Send + 'static>(
 ) -> MessageSenderThread {
     let (sender, receiver) = channel();
     let handle = thread::spawn(move || loop {
-        let msg = receiver.recv().unwrap();
+        let msg = receiver.recv();
+        // Terminate the thread when recv() failed.
+        let msg = if let Ok(msg) = msg { msg } else { break };
 
-        // TODO: Check using unwrap() makes sense.
         match msg {
             SendingMessage::SuccessResponse(res) => {
                 protocol::write_success_response(&mut writer, res.id, res.result).unwrap();
@@ -84,6 +90,6 @@ pub(crate) fn start_message_sender_thread<W: Write + Send + 'static>(
 
     MessageSenderThread {
         sender: sender,
-        _handle: handle,
+        handle: handle,
     }
 }

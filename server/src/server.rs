@@ -238,3 +238,93 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::{read_message, write_notification, write_request};
+
+    use lsp_types::notification::*;
+    use lsp_types::request::*;
+    use pipe::pipe;
+
+    #[test]
+    fn test_server_init() {
+        let (reader, mut writer) = pipe();
+
+        let capabilities = lsp_types::ClientCapabilities {
+            workspace: None,
+            text_document: None,
+            experimental: None,
+        };
+        let params = lsp_types::InitializeParams {
+            process_id: None,
+            root_path: None,
+            root_uri: None,
+            initialization_options: None,
+            capabilities: capabilities,
+            trace: None,
+            workspace_folders: None,
+        };
+        let params = serde_json::to_value(&params).unwrap();
+
+        let (r, w) = pipe();
+        let handle = std::thread::spawn(move || {
+            let status = start(reader, w);
+            status
+        });
+
+        write_request(
+            &mut writer,
+            1,
+            lsp_types::request::Initialize::METHOD,
+            params,
+        )
+        .unwrap();
+
+        let mut r = BufReader::new(r);
+        let msg = read_message(&mut r).unwrap();
+        match msg {
+            protocol::Message::Response(msg) => {
+                assert_eq!(1, msg.id);
+            }
+            _ => unreachable!(),
+        }
+
+        write_notification(
+            &mut writer,
+            lsp_types::notification::Initialized::METHOD,
+            serde_json::Value::Null,
+        )
+        .unwrap();
+
+        write_request(
+            &mut writer,
+            2,
+            lsp_types::request::Shutdown::METHOD,
+            serde_json::Value::Null,
+        )
+        .unwrap();
+
+        let msg = read_message(&mut r).unwrap();
+        match msg {
+            protocol::Message::Response(msg) => {
+                assert_eq!(2, msg.id);
+            }
+            _ => unreachable!(),
+        }
+
+        write_notification(
+            &mut writer,
+            lsp_types::notification::Exit::METHOD,
+            serde_json::Value::Null,
+        )
+        .unwrap();
+
+        drop(writer);
+        drop(r);
+
+        let status = handle.join().unwrap();
+        assert!(status.is_ok());
+    }
+}
