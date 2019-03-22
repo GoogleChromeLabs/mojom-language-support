@@ -3,8 +3,6 @@ extern crate pest_derive;
 
 mod syntax;
 mod traverse;
-mod visitor;
 
 pub use syntax::*;
-pub use traverse::{Traversal, preorder};
-pub use visitor::{Element, Visitor};
+pub use traverse::{preorder, Traversal};

@@ -1,6 +1,6 @@
 mod definition;
 mod diagnostic;
-mod import;
+mod imported_files;
 mod initialization;
 mod messagesender;
 mod mojomast;

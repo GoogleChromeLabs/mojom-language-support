@@ -7,7 +7,7 @@ use std::thread::{self, JoinHandle};
 
 use lsp_types::Url as Uri;
 
-use crate::import::{check_imports, ImportedFiles};
+use crate::imported_files::{check_imports, ImportedFiles};
 use crate::messagesender::MessageSender;
 use crate::mojomast::MojomAst;
 use crate::protocol::NotificationMessage;

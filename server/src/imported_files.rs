@@ -4,6 +4,8 @@ use std::path::Path;
 
 use lsp_types::{Location, Range, Url};
 
+use mojom_syntax::{preorder, Traversal};
+
 use crate::definition::create_lsp_range;
 use crate::mojomast::MojomAst;
 
@@ -17,7 +19,7 @@ struct ImportDefinition {
 struct Import {
     uri: Url,
     module_name: Option<String>,
-    defs: Vec<ImportDefinition>,
+    definitions: Vec<ImportDefinition>,
 }
 
 #[derive(Debug)]
@@ -36,25 +38,24 @@ type ImportResult = std::result::Result<Import, ImportError>;
 
 #[derive(Debug)]
 pub(crate) struct ImportedFiles {
-    imports: Vec<ImportResult>,
+    parsed_imports: Vec<ImportResult>,
 }
 
 impl ImportedFiles {
     pub(crate) fn find_definition(&self, ident: &str) -> Option<Location> {
-        for imported in &self.imports {
-            if let Ok(ref imported) = imported {
-                for definition in &imported.defs {
-                    if definition.ident == ident {
+        let valid_imports = self.parsed_imports.iter().filter_map(|i| i.as_ref().ok());
+        for imported in valid_imports {
+            for definition in &imported.definitions {
+                if definition.ident == ident {
+                    let loc = Location::new(imported.uri.clone(), definition.range.clone());
+                    return Some(loc);
+                }
+
+                if let Some(module_name) = &imported.module_name {
+                    let canonocal_name = format!("{}.{}", module_name, definition.ident);
+                    if canonocal_name == ident {
                         let loc = Location::new(imported.uri.clone(), definition.range.clone());
                         return Some(loc);
-                    }
-
-                    if let Some(module_name) = &imported.module_name {
-                        let canonocal_name = format!("{}.{}", module_name, definition.ident);
-                        if canonocal_name == ident {
-                            let loc = Location::new(imported.uri.clone(), definition.range.clone());
-                            return Some(loc);
-                        }
                     }
                 }
             }
@@ -65,75 +66,39 @@ impl ImportedFiles {
 
 pub(crate) fn check_imports<P: AsRef<Path>>(root_path: P, ast: &MojomAst) -> ImportedFiles {
     let root_path = root_path.as_ref();
-    let mut imports = Vec::new();
+    let mut parsed_imports = Vec::new();
     for stmt in &ast.mojom.stmts {
         match stmt {
             mojom_syntax::Statement::Import(stmt) => {
                 let path = ast.text(&stmt.path);
                 let path = root_path.join(&path[1..path.len() - 1]);
                 let imported = parse_imported(&path);
-                imports.push(imported);
+                parsed_imports.push(imported);
             }
             _ => (),
         }
     }
 
-    ImportedFiles { imports: imports }
-}
-
-struct ImportVisitor<'a> {
-    ast: &'a MojomAst,
-    path: Vec<&'a str>,
-    // Output of this visitor.
-    defs: Vec<ImportDefinition>,
-}
-
-impl<'a> ImportVisitor<'a> {
-    fn add(&mut self, field: &mojom_syntax::Range) {
-        let name = self.ast.text(field);
-        self.path.push(name);
-        let ident = self.path.join(".");
-        self.path.pop();
-        let range = create_lsp_range(&self.ast, field);
-        self.defs.push(ImportDefinition {
-            ident: ident,
-            range: range,
-        })
+    ImportedFiles {
+        parsed_imports: parsed_imports,
     }
 }
 
-impl<'a> mojom_syntax::Visitor for ImportVisitor<'a> {
-    fn visit_interface(&mut self, elem: &mojom_syntax::Interface) {
-        self.add(&elem.name);
-        let name = self.ast.text(&elem.name);
-        self.path.push(name);
-    }
-
-    fn leave_interface(&mut self, _: &mojom_syntax::Interface) {
-        self.path.pop();
-    }
-
-    fn visit_struct(&mut self, elem: &mojom_syntax::Struct) {
-        self.add(&elem.name);
-        let name = self.ast.text(&elem.name);
-        self.path.push(name);
-    }
-
-    fn leave_struct(&mut self, _: &mojom_syntax::Struct) {
-        self.path.pop();
-    }
-
-    fn visit_union(&mut self, elem: &mojom_syntax::Union) {
-        self.add(&elem.name);
-    }
-
-    fn visit_enum(&mut self, elem: &mojom_syntax::Enum) {
-        self.add(&elem.name);
-    }
-
-    fn visit_const(&mut self, elem: &mojom_syntax::Const) {
-        self.add(&elem.name);
-    }
+fn add_definition<'a, 'b, 'c>(
+    field: &'a mojom_syntax::Range,
+    ast: &'b MojomAst,
+    path: &'c mut Vec<&'b str>,
+    definitions: &'c mut Vec<ImportDefinition>,
+) {
+    let name = ast.text(field);
+    path.push(name);
+    let ident = path.join(".");
+    path.pop();
+    let range = create_lsp_range(&ast, field);
+    definitions.push(ImportDefinition {
+        ident: ident,
+        range: range,
+    });
 }
 
 fn parse_imported<P: AsRef<Path>>(path: P) -> ImportResult {
@@ -149,20 +114,39 @@ fn parse_imported<P: AsRef<Path>>(path: P) -> ImportResult {
 
     let ast = MojomAst::from_mojom(uri, text, mojom);
 
-    let mut v = ImportVisitor {
-        ast: &ast,
-        path: Vec::new(),
-        defs: Vec::new(),
-    };
-    use mojom_syntax::Element;
-    ast.mojom.accept(&mut v);
+    let mut path = Vec::new();
+    let mut definitions: Vec<ImportDefinition> = Vec::new();
+    for traversal in preorder(&ast.mojom) {
+        match traversal {
+            Traversal::EnterInterface(node) => {
+                add_definition(&node.name, &ast, &mut path, &mut definitions);
+                let name = ast.text(&node.name);
+                path.push(name);
+            }
+            Traversal::LeaveInterface(_) => {
+                path.pop();
+            }
+            Traversal::EnterStruct(node) => {
+                add_definition(&node.name, &ast, &mut path, &mut definitions);
+                let name = ast.text(&node.name);
+                path.push(name);
+            }
+            Traversal::LeaveStruct(_) => {
+                path.pop();
+            }
+            Traversal::Union(node) => add_definition(&node.name, &ast, &mut path, &mut definitions),
+            Traversal::Enum(node) => add_definition(&node.name, &ast, &mut path, &mut definitions),
+            Traversal::Const(node) => add_definition(&node.name, &ast, &mut path, &mut definitions),
+            _ => (),
+        }
+    }
 
     let module_name = ast.module_name().map(|name| name.to_owned());
 
     Ok(Import {
         uri: ast.uri.clone(),
         module_name: module_name,
-        defs: v.defs,
+        definitions: definitions,
     })
 }
 
