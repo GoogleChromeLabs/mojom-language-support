@@ -5,6 +5,7 @@ mod initialization;
 mod messagesender;
 mod mojomast;
 mod protocol;
+mod semantic;
 mod server;
 
 pub use server::start;

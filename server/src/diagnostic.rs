@@ -155,6 +155,11 @@ impl Diagnostic {
                 vec![]
             }
             Err(err) => {
+                // TODO: Tidy errors.
+                let err = match err {
+                    crate::semantic::Error::SyntaxError(err) => err,
+                    _ => unreachable!(),
+                };
                 self.ast = None;
                 let (start, end) = err.range();
                 let range = into_lsp_range(&start, &end);

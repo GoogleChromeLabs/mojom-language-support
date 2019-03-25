@@ -1,5 +1,6 @@
-use mojom_syntax::Error as ParseError;
-use mojom_syntax::{self, parse, Module, MojomFile, Statement};
+use mojom_syntax::{self, parse, Module, MojomFile};
+
+type Error = crate::semantic::Error;
 
 #[derive(Debug)]
 pub(crate) struct MojomAst {
@@ -14,20 +15,28 @@ impl MojomAst {
     pub(crate) fn new<S: Into<String>>(
         uri: lsp_types::Url,
         text: S,
-    ) -> std::result::Result<MojomAst, ParseError> {
+    ) -> std::result::Result<MojomAst, Error> {
         let text = text.into();
         let mojom = parse(&text)?;
-        let module = find_module_stmt(&mojom);
+        let analysis = crate::semantic::do_semantics_analysis(&mojom)?;
+
         Ok(MojomAst {
             uri: uri,
             text: text,
             mojom: mojom,
-            module: module,
+            module: analysis.module,
         })
     }
 
     pub(crate) fn from_mojom(uri: lsp_types::Url, text: String, mojom: MojomFile) -> MojomAst {
-        let module = find_module_stmt(&mojom);
+        let mut module = None;
+        match crate::semantic::do_semantics_analysis(&mojom) {
+            Ok(analysis) => {
+                module = analysis.module;
+            }
+            Err(_) => (),
+        };
+
         MojomAst {
             uri: uri,
             text: text,
@@ -51,18 +60,4 @@ impl MojomAst {
             .as_ref()
             .map(|ref module| self.text(&module.name))
     }
-}
-
-fn find_module_stmt(mojom: &MojomFile) -> Option<Module> {
-    // This function assumes that `mojom` has only one Module, which should be
-    // checked in semantics analysis.
-    for stmt in &mojom.stmts {
-        match stmt {
-            Statement::Module(module) => {
-                return Some(module.clone());
-            }
-            _ => continue,
-        }
-    }
-    None
 }
