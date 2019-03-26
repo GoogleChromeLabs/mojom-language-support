@@ -961,8 +961,8 @@ mod tests {
         interface InterfaceD {
             const string kMessage = "message";
             enum SomeEnum { Foo, Bar, Baz, };
-            MethodA(string message) => ();
-            MethodB() => (int32 result);
+            MethodA(string message, string? optional_message) => ();
+            MethodB() => (int32 result, MyStruct? optional_result);
             [Attr2] MethodC(associated InterfaceA assoc) => (map<string, int8> result);
         };
         "#;

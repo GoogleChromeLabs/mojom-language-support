@@ -68,18 +68,18 @@ interface_body = {
 identifier = @{ name ~ "." ~ identifier | name }
 
 type_spec = {
-  type_name ~ "?" |
+  type_name ~ t_nullable |
   type_name
 }
 type_name = { fixed_array | array | map | interface_request | basic_type_name }
 basic_type_name = {
-  numeric_type | handle_type | "associated" ~ identifier | identifier
+  numeric_type | handle_type | t_associated ~ identifier | identifier
 }
 numeric_type = {
   "bool" | "int8" | "uint8" | "int16" | "uint16" | "int32" | "uint32" |
   "int64" | "uint64" | "float" | "double"
 }
-handle_type = { "handle" ~ (t_langlebracket ~ specific_handle_type ~ t_ranglebracket)? }
+handle_type = { t_handle ~ (t_langlebracket ~ specific_handle_type ~ t_ranglebracket)? }
 specific_handle_type = {
   "message_pipe" | "shared_buffer" | "data_pipe_consumer" |
   "data_pipe_producer"
@@ -88,8 +88,8 @@ array = { t_array ~ t_langlebracket ~ type_spec ~ t_ranglebracket }
 fixed_array = { t_array ~ t_langlebracket ~ type_spec ~ t_comma ~ int_const_dec ~ t_ranglebracket }
 map = { t_map ~ t_langlebracket ~ identifier ~ t_comma ~ type_spec ~ t_ranglebracket }
 interface_request = {
-  "associated" ~ identifier ~ "&" |
-  identifier ~ "&"
+  t_associated ~ identifier ~ t_amp |
+  identifier ~ t_amp
 }
 
 const_stmt = {
@@ -179,3 +179,8 @@ t_lbracket = { "[" }
 t_rbracket = { "]" }
 t_langlebracket = { "<" }
 t_ranglebracket = { ">" }
+
+t_associated = { "associated" }
+t_handle = { "handle" }
+t_nullable = { "?" }
+t_amp = { "&" }
