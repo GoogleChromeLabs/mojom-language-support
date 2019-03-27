@@ -157,30 +157,29 @@ string_char = {
   | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
 }
 
-// These aren't strictly needed to parse but useful to generate meaningful
-// error messages.
-t_module = { "module" }
-t_import = { "import" }
-t_struct = { "struct" }
-t_interface = { "interface" }
-t_union = { "union" }
-t_const = { "const" }
+// Tokens. Some of these aren't strictly needed but useful to generate
+// meaningful error messages.
 t_array = { "array" }
-t_map = { "map" }
-t_comma = { "," }
-t_semicolon = { ";" }
-t_equal = { "=" }
-t_arrow = { "=>" }
-t_lparen = { "(" }
-t_rparen = { ")" }
-t_lbrace = { "{" }
-t_rbrace = { "}" }
-t_lbracket = { "[" }
-t_rbracket = { "]" }
-t_langlebracket = { "<" }
-t_ranglebracket = { ">" }
-
 t_associated = { "associated" }
+t_const = { "const" }
 t_handle = { "handle" }
-t_nullable = { "?" }
+t_import = { "import" }
+t_interface = { "interface" }
+t_map = { "map" }
+t_module = { "module" }
+t_struct = { "struct" }
+t_union = { "union" }
 t_amp = { "&" }
+t_arrow = { "=>" }
+t_comma = { "," }
+t_equal = { "=" }
+t_langlebracket = { "<" }
+t_lbrace = { "{" }
+t_lbracket = { "[" }
+t_lparen = { "(" }
+t_nullable = { "?" }
+t_ranglebracket = { ">" }
+t_rbrace = { "}" }
+t_rbracket = { "]" }
+t_rparen = { ")" }
+t_semicolon = { ";" }

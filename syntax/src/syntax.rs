@@ -1,10 +1,6 @@
 use pest::{Parser, Position, Span};
 
-#[derive(Parser)]
-#[grammar = "mojom.pest"]
-struct MojomParser;
-
-type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
+use crate::parser::{consume_token, MojomParser, Pairs, Rule};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Range {
@@ -36,12 +32,6 @@ fn consume_semicolon(pairs: &mut Pairs) {
         Rule::t_semicolon => (),
         _ => unreachable!(),
     };
-}
-
-fn consume_token(rule: Rule, pairs: &mut Pairs) {
-    if pairs.next().unwrap().as_rule() != rule {
-        unreachable!()
-    }
 }
 
 fn consume_as_range(pairs: &mut Pairs) -> Range {
