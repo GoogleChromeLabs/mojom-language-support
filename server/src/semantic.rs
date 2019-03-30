@@ -1,10 +1,9 @@
 use mojom_syntax::Error as SyntaxError;
-use mojom_syntax::{Module, MojomFile, Statement};
+use mojom_syntax::{Module, MojomFile};
 
 #[derive(Debug)]
 pub(crate) enum Error {
     SyntaxError(SyntaxError),
-    MultipleModuleError(String),
 }
 
 impl From<SyntaxError> for Error {
@@ -15,24 +14,48 @@ impl From<SyntaxError> for Error {
 
 pub(crate) struct Analysis {
     pub(crate) module: Option<Module>,
+    pub(crate) diagnostics: Vec<lsp_types::Diagnostic>,
 }
 
-pub(crate) fn do_semantics_analysis(mojom: &MojomFile) -> std::result::Result<Analysis, Error> {
-    let mut module = None;
-    for stmt in &mojom.stmts {
-        match stmt {
-            Statement::Module(stmt) => {
-                if module.is_some() {
-                    let msg = format!(
-                        "Found more than one module stmt: {:?} and {:?}",
-                        module, stmt
+fn partial_text<'a>(text: &'a str, range: &mojom_syntax::Range) -> &'a str {
+    &text[range.start..range.end]
+}
+
+pub(crate) fn check_semantics(text: &str, mojom: &MojomFile) -> Analysis {
+    let mut module: Option<Module> = None;
+    let mut diagnostics = Vec::new();
+
+    for traverse in mojom_syntax::preorder(mojom) {
+        match traverse {
+            mojom_syntax::Traversal::Module(stmt) => {
+                if let Some(ref module) = module {
+                    let message = format!(
+                        "Found more than one module statement: {} and {}",
+                        partial_text(&text, &module.name),
+                        partial_text(&text, &stmt.name)
                     );
-                    return Err(Error::MultipleModuleError(msg));
+                    let start = mojom_syntax::line_col(text, stmt.name.start).unwrap();
+                    let end = mojom_syntax::line_col(text, stmt.name.end).unwrap();
+                    let range = crate::diagnostic::into_lsp_range(&start, &end);
+                    let diagnostic = lsp_types::Diagnostic {
+                        range: range,
+                        severity: Some(lsp_types::DiagnosticSeverity::Error),
+                        code: Some(lsp_types::NumberOrString::String("mojom".to_owned())),
+                        source: Some("mojom-lsp".to_owned()),
+                        message: message,
+                        related_information: None,
+                    };
+                    diagnostics.push(diagnostic);
+                } else {
+                    module = Some(stmt.clone());
                 }
-                module = Some(stmt.clone());
             }
-            _ => continue,
+            _ => (),
         }
     }
-    Ok(Analysis { module: module })
+
+    Analysis {
+        module: module,
+        diagnostics: diagnostics,
+    }
 }

@@ -552,9 +552,14 @@ pub fn parse(input: &str) -> Result<MojomFile, Error> {
     Ok(mojom)
 }
 
-/// Converts `offset` to (line, column) position in `text`.
-pub fn line_col(text: &str, offset: usize) -> Option<(usize, usize)> {
-    Position::new(text, offset).map(|p| p.line_col())
+/// Converts `offset` to LineCol in `text`.
+pub fn line_col(text: &str, offset: usize) -> Option<LineCol> {
+    Position::new(text, offset)
+        .map(|p| p.line_col())
+        .map(|(line, col)| LineCol {
+            line: line - 1,
+            col: col - 1,
+        })
 }
 
 #[cfg(test)]

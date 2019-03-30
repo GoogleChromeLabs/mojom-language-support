@@ -116,7 +116,9 @@ fn parse_imported<P: AsRef<Path>>(path: P) -> ImportResult {
     let path = path.as_ref().canonicalize().unwrap();
     let uri = Url::from_file_path(&path).unwrap();
 
-    let ast = MojomAst::from_mojom(uri, text, mojom);
+    // TODO: Maybe store semantics errors.
+    let analysis = crate::semantic::check_semantics(&text, &mojom);
+    let ast = MojomAst::from_mojom(uri, text, mojom, analysis.module);
 
     let mut path = Vec::new();
     let mut definitions: Vec<ImportDefinition> = Vec::new();
@@ -179,7 +181,9 @@ mod tests {
             .read_to_string(&mut text)
             .unwrap();
         let uri = create_uri(&file_path);
-        let ast = MojomAst::new(uri, text).unwrap();
+        let mojom = mojom_syntax::parse(&text).unwrap();
+        let analytics = crate::semantic::check_semantics(&text, &mojom);
+        let ast = MojomAst::from_mojom(uri, text, mojom, analytics.module);
 
         let imports = check_imports(&root_path, &ast);
 

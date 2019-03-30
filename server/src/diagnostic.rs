@@ -149,17 +149,20 @@ impl Diagnostic {
     }
 
     fn check_syntax(&mut self, uri: Uri, text: String) {
-        let diagnostics = match MojomAst::new(uri.clone(), text) {
-            Ok(ast) => {
-                self.ast = Some(ast);
-                vec![]
+        let mojom = mojom_syntax::parse(&text);
+        let diagnostics = match mojom {
+            Ok(mojom) => {
+                let analytics = crate::semantic::check_semantics(&text, &mojom);
+                // TODO: Don't store ast when semantics check fails?
+                self.ast = Some(MojomAst::from_mojom(
+                    uri.clone(),
+                    text,
+                    mojom,
+                    analytics.module,
+                ));
+                analytics.diagnostics
             }
             Err(err) => {
-                // TODO: Tidy errors.
-                let err = match err {
-                    crate::semantic::Error::SyntaxError(err) => err,
-                    _ => unreachable!(),
-                };
                 self.ast = None;
                 let (start, end) = err.range();
                 let range = into_lsp_range(&start, &end);
@@ -174,6 +177,7 @@ impl Diagnostic {
                 vec![diagnostic]
             }
         };
+
         let params = lsp_types::PublishDiagnosticsParams {
             uri: uri,
             diagnostics: diagnostics,
@@ -189,7 +193,10 @@ impl Diagnostic {
     }
 }
 
-fn into_lsp_range(start: &mojom_syntax::LineCol, end: &mojom_syntax::LineCol) -> lsp_types::Range {
+pub(crate) fn into_lsp_range(
+    start: &mojom_syntax::LineCol,
+    end: &mojom_syntax::LineCol,
+) -> lsp_types::Range {
     lsp_types::Range {
         start: lsp_types::Position::new(start.line as u64, start.col as u64),
         end: lsp_types::Position::new(end.line as u64, end.col as u64),

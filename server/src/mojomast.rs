@@ -1,6 +1,4 @@
-use mojom_syntax::{self, parse, Module, MojomFile};
-
-type Error = crate::semantic::Error;
+use mojom_syntax::{self, Module, MojomFile};
 
 #[derive(Debug)]
 pub(crate) struct MojomAst {
@@ -12,31 +10,12 @@ pub(crate) struct MojomAst {
 }
 
 impl MojomAst {
-    pub(crate) fn new<S: Into<String>>(
+    pub(crate) fn from_mojom(
         uri: lsp_types::Url,
-        text: S,
-    ) -> std::result::Result<MojomAst, Error> {
-        let text = text.into();
-        let mojom = parse(&text)?;
-        let analysis = crate::semantic::do_semantics_analysis(&mojom)?;
-
-        Ok(MojomAst {
-            uri: uri,
-            text: text,
-            mojom: mojom,
-            module: analysis.module,
-        })
-    }
-
-    pub(crate) fn from_mojom(uri: lsp_types::Url, text: String, mojom: MojomFile) -> MojomAst {
-        let mut module = None;
-        match crate::semantic::do_semantics_analysis(&mojom) {
-            Ok(analysis) => {
-                module = analysis.module;
-            }
-            Err(_) => (),
-        };
-
+        text: String,
+        mojom: MojomFile,
+        module: Option<Module>,
+    ) -> MojomAst {
         MojomAst {
             uri: uri,
             text: text,
@@ -50,7 +29,7 @@ impl MojomAst {
         &self.text[field.start..field.end]
     }
 
-    pub(crate) fn line_col(&self, offset: usize) -> (usize, usize) {
+    pub(crate) fn line_col(&self, offset: usize) -> mojom_syntax::LineCol {
         // Can panic.
         mojom_syntax::line_col(&self.text, offset).unwrap()
     }

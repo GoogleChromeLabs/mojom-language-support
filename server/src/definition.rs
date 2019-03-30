@@ -5,10 +5,10 @@ use mojom_syntax::{preorder, Traversal};
 use crate::mojomast::MojomAst;
 
 pub(crate) fn create_lsp_range(ast: &MojomAst, field: &mojom_syntax::Range) -> Range {
-    let (line, col) = ast.line_col(field.start);
-    let start = Position::new((line - 1) as u64, (col - 1) as u64);
-    let (line, col) = ast.line_col(field.end);
-    let end = Position::new((line - 1) as u64, (col - 1) as u64);
+    let pos = ast.line_col(field.start);
+    let start = Position::new(pos.line as u64, pos.col as u64);
+    let pos = ast.line_col(field.end);
+    let end = Position::new(pos.line as u64, pos.col as u64);
     Range::new(start, end)
 }
 
