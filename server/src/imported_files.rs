@@ -25,11 +25,15 @@ struct Import {
 #[derive(Debug)]
 enum ImportError {
     IoError(std::io::Error),
+    NotFound(String /* path */),
     SyntaxError(String),
 }
 
 impl From<std::io::Error> for ImportError {
     fn from(err: std::io::Error) -> Self {
+        if err.kind() == std::io::ErrorKind::NotFound {
+            return ImportError::NotFound(err.to_string());
+        }
         ImportError::IoError(err)
     }
 }
