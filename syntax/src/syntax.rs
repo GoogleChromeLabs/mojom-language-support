@@ -144,10 +144,10 @@ fn into_enum(mut pairs: Pairs) -> Enum {
 
 #[derive(Debug, PartialEq)]
 pub struct StructField {
-    typ: Range,
-    name: Range,
-    ordinal: Option<Range>,
-    default: Option<Range>,
+    pub typ: Range,
+    pub name: Range,
+    pub ordinal: Option<Range>,
+    pub default: Option<Range>,
 }
 
 fn into_struct_field(mut pairs: Pairs) -> StructField {
