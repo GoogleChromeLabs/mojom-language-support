@@ -675,6 +675,9 @@ mod tests {
         parse_type!("double");
         parse_type!("handle");
         parse_type!("handle<message_pipe>");
+        parse_type!("pending_receiver<MyInterface>");
+        parse_type!("pending_remote<mymodule.MyInterface>");
+        parse_type!("handle<message_pipe>");
         parse_type!("string");
         parse_type!("array<uint8>");
         parse_type!("array<uint8, 16>");
@@ -798,7 +801,7 @@ mod tests {
         assert_eq!(0, stmt.params.len());
         assert!(stmt.response.is_none());
 
-        let input = "MyMethod3(int8 int8_arg) => ();";
+        let input = "MyMethod3(int8 default_int8_arg) => ();";
         let parsed = MojomParser::parse(Rule::method_stmt, &input)
             .unwrap()
             .next()
@@ -808,7 +811,7 @@ mod tests {
         assert_eq!(1, stmt.params.len());
         let params = &stmt.params;
         assert_eq!("int8", partial_text(&input, &params[0].typ));
-        assert_eq!("int8_arg", partial_text(&input, &params[0].name));
+        assert_eq!("default_int8_arg", partial_text(&input, &params[0].name));
         let response = stmt.response.as_ref().unwrap();
         assert_eq!(0, response.params.len());
     }

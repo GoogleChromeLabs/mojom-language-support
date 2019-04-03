@@ -1,6 +1,6 @@
 use pest::Parser;
 
-use crate::parser::{MojomParser, Pairs, Rule, consume_token};
+use crate::parser::{consume_token, MojomParser, Pairs, Rule};
 
 #[derive(Debug)]
 pub struct Error(String);
@@ -11,6 +11,7 @@ impl From<pest::error::Error<Rule>> for Error {
     }
 }
 
+// TODO: Support pending_receiver<T> and pending_remote<T>.
 #[derive(Debug, PartialEq)]
 pub enum TypeName {
     FixedArray(Box<TypeSpec>, u64 /* size */),
