@@ -177,7 +177,7 @@ mod tests {
     #[test]
     fn test_preorder() {
         let input = r#"
-        module test.module;
+        module test.mod;
         struct MyStruct {
             const string kMyStructString = "const_value";
         };
@@ -193,7 +193,7 @@ mod tests {
                 _ => None,
             })
             .unwrap();
-        assert_eq!("test.module", partial_text(&input, &module.name));
+        assert_eq!("test.mod", partial_text(&input, &module.name));
 
         let method = preorder(&mojom)
             .find_map(|t| match t {

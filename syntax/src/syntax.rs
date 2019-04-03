@@ -915,7 +915,7 @@ mod tests {
     #[test]
     fn test_parse() {
         let input = r#"
-        module test.module;
+        module test.mod;
         import "a.b.c";
         import "a.c.d";
 
