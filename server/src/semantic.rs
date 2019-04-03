@@ -3,12 +3,13 @@ use mojom_syntax::{Module, MojomFile};
 
 #[derive(Debug)]
 pub(crate) enum Error {
-    SyntaxError(SyntaxError),
+    SyntaxError(String),
 }
 
-impl From<SyntaxError> for Error {
-    fn from(err: SyntaxError) -> Error {
-        Error::SyntaxError(err)
+impl<'a> From<SyntaxError<'a>> for Error {
+    fn from(err: SyntaxError<'a>) -> Error {
+        let msg = format!("{:?}", err);
+        Error::SyntaxError(msg)
     }
 }
 

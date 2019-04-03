@@ -453,88 +453,100 @@ fn into_mojom_file(pairs: Pairs) -> MojomFile {
     MojomFile { stmts: stmts }
 }
 
-type PestError = pest::error::Error<Rule>;
-
-/// Represents a syntax error.
-#[derive(Debug)]
-pub struct Error(PestError);
-
 /// Zero-based line/column in a text.
+#[derive(Debug)]
 pub struct LineCol {
     pub line: usize,
     pub col: usize,
 }
 
-impl Error {
+type PestError = pest::error::Error<Rule>;
+
+/// Represents a syntax error.
+#[derive(Debug)]
+pub struct Error<'a> {
+    input: &'a str,
+    pest_err: PestError,
+    span: (usize, usize),
+}
+
+impl<'a> Error<'a> {
     /// Returns `start` and `end` positions of the error.
     pub fn range(&self) -> (LineCol, LineCol) {
-        match &self.0.line_col {
-            pest::error::LineColLocation::Pos((line, col)) => {
-                let start = LineCol {
-                    line: *line - 1,
-                    col: *col - 1,
-                };
-                // ???
-                let end = LineCol {
-                    line: *line - 1,
-                    col: *col - 1,
-                };
-                (start, end)
+        let (start, end) = self.span;
+        let start = line_col(&self.input, start).unwrap();
+        let end = line_col(&self.input, end).unwrap();
+        (start, end)
+    }
+}
+
+impl<'a> std::fmt::Display for Error<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.pest_err)
+    }
+}
+
+fn find_token_end_position(input: &str, start: usize) -> usize {
+    let mut end = start;
+    for ch in input[start..].chars() {
+        if ch == ' ' || ch == '\r' || ch == '\n' {
+            break;
+        }
+        end += 1;
+    }
+
+    if end > input.len() {
+        end = input.len();
+    }
+    end
+}
+
+impl<'a> Error<'a> {
+    fn new(input: &str, err: PestError) -> Error {
+        let span = match &err.location {
+            pest::error::InputLocation::Pos(start) => {
+                let end = find_token_end_position(&input, *start);
+                (*start, end)
             }
-            pest::error::LineColLocation::Span(start, end) => {
-                // `start` and `end` are tuples like (line, col).
-                let start = LineCol {
-                    line: start.0 - 1,
-                    col: start.1 - 1,
-                };
-                let end = LineCol {
-                    line: end.0 - 1,
-                    col: end.1 - 1,
-                };
-                (start, end)
-            }
+            pest::error::InputLocation::Span((start, end)) => (*start, *end),
+        };
+        Error {
+            input: input,
+            pest_err: err,
+            span: span,
         }
     }
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<PestError> for Error {
-    fn from(err: PestError) -> Error {
-        Error(err)
-    }
-}
-
 fn parse_input(input: &str) -> Result<Pairs, PestError> {
-    // TODO: Don't treat EOI as an error.
     MojomParser::parse(Rule::mojom_file, input).map_err(|err| {
         err.renamed_rules(|rule| match rule {
             Rule::EOI => "'End of File'".to_owned(),
             Rule::mojom_file => "statement".to_owned(),
-            Rule::t_module => "module".to_owned(),
-            Rule::t_import => "import".to_owned(),
-            Rule::t_struct => "struct".to_owned(),
-            Rule::t_interface => "interface".to_owned(),
-            Rule::t_union => "union".to_owned(),
-            Rule::t_const => "const".to_owned(),
             Rule::t_array => "array".to_owned(),
+            Rule::t_associated => "associated".to_owned(),
+            Rule::t_const => "const".to_owned(),
+            Rule::t_handle => "handle".to_owned(),
+            Rule::t_import => "import".to_owned(),
+            Rule::t_interface => "interface".to_owned(),
             Rule::t_map => "map".to_owned(),
-            Rule::t_comma => "','".to_owned(),
-            Rule::t_semicolon => "';'".to_owned(),
-            Rule::t_equal => "'='".to_owned(),
+            Rule::t_module => "module".to_owned(),
+            Rule::t_struct => "struct".to_owned(),
+            Rule::t_union => "union".to_owned(),
+            Rule::t_amp => "'&'".to_owned(),
             Rule::t_arrow => "'=>'".to_owned(),
-            Rule::t_lparen => "'('".to_owned(),
-            Rule::t_rparen => "')'".to_owned(),
-            Rule::t_lbrace => "'{'".to_owned(),
-            Rule::t_rbrace => "'}'".to_owned(),
-            Rule::t_lbracket => "'['".to_owned(),
-            Rule::t_rbracket => "']'".to_owned(),
+            Rule::t_comma => "','".to_owned(),
+            Rule::t_equal => "'='".to_owned(),
             Rule::t_langlebracket => "'<'".to_owned(),
+            Rule::t_lbrace => "'{'".to_owned(),
+            Rule::t_lbracket => "'['".to_owned(),
+            Rule::t_lparen => "'('".to_owned(),
+            Rule::t_nullable => "'?'".to_owned(),
             Rule::t_ranglebracket => "'>'".to_owned(),
+            Rule::t_rbrace => "'}'".to_owned(),
+            Rule::t_rbracket => "']'".to_owned(),
+            Rule::t_rparen => "')'".to_owned(),
+            Rule::t_semicolon => "';'".to_owned(),
             _ => format!("{:?}", rule),
         })
     })
@@ -547,7 +559,7 @@ fn build_syntax_tree(mut pairs: Pairs) -> MojomFile {
 
 /// Parses `input` into a syntax tree.
 pub fn parse(input: &str) -> Result<MojomFile, Error> {
-    let pairs = parse_input(input)?;
+    let pairs = parse_input(input).map_err(|err| Error::new(input, err))?;
     let mojom = build_syntax_tree(pairs);
     Ok(mojom)
 }
