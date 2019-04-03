@@ -21,34 +21,6 @@ fn partial_text<'a>(text: &'a str, range: &mojom_syntax::Range) -> &'a str {
     &text[range.start..range.end]
 }
 
-fn is_keyword(ident: &str) -> bool {
-    ident == "array"
-        || ident == "true"
-        || ident == "false"
-        || ident == "default"
-        || ident == "bool"
-        || ident == "int8"
-        || ident == "uint8"
-        || ident == "int16"
-        || ident == "uint8"
-        || ident == "int32"
-        || ident == "uint32"
-        || ident == "int64"
-        || ident == "uint64"
-        || ident == "float"
-        || ident == "double"
-        || ident == "associated"
-        || ident == "const"
-        || ident == "enum"
-        || ident == "handle"
-        || ident == "import"
-        || ident == "interface"
-        || ident == "map"
-        || ident == "module"
-        || ident == "struct"
-        || ident == "union"
-}
-
 fn create_diagnostic(
     text: &str,
     range: &mojom_syntax::Range,
@@ -64,32 +36,6 @@ fn create_diagnostic(
         source: Some("mojom-lsp".to_owned()),
         message: message,
         related_information: None,
-    }
-}
-
-fn check_invalid_keywords(
-    text: &str,
-    mojom: &MojomFile,
-    diagnostics: &mut Vec<lsp_types::Diagnostic>,
-) {
-    let idents = mojom_syntax::preorder(mojom).filter_map(|traverse| match traverse {
-        mojom_syntax::Traversal::EnterInterface(stmt) => Some(&stmt.name),
-        mojom_syntax::Traversal::EnterStruct(stmt) => Some(&stmt.name),
-        mojom_syntax::Traversal::Module(stmt) => Some(&stmt.name),
-        mojom_syntax::Traversal::Method(stmt) => Some(&stmt.name),
-        mojom_syntax::Traversal::Union(stmt) => Some(&stmt.name),
-        mojom_syntax::Traversal::Enum(stmt) => Some(&stmt.name),
-        mojom_syntax::Traversal::Const(stmt) => Some(&stmt.name),
-        mojom_syntax::Traversal::StructField(stmt) => Some(&stmt.name),
-        _ => None,
-    });
-    for range in idents {
-        let name = partial_text(&text, range);
-        if is_keyword(name) {
-            let message = format!("Unexpected keyword: {}", name);
-            let diagnostic = create_diagnostic(&text, range, message);
-            diagnostics.push(diagnostic);
-        }
     }
 }
 
@@ -123,9 +69,6 @@ fn find_module(
 pub(crate) fn check_semantics(text: &str, mojom: &MojomFile) -> Analysis {
     let mut diagnostics = Vec::new();
     let module = find_module(text, mojom, &mut diagnostics);
-
-    check_invalid_keywords(text, mojom, &mut diagnostics);
-
     Analysis {
         module: module,
         diagnostics: diagnostics,
