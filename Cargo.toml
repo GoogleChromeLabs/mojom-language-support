@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "chromium-mojom-check",
     "syntax",
     "server",
 ]

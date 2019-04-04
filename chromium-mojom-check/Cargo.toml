@@ -1,0 +1,10 @@
+[package]
+name = "chromium-mojom-check"
+version = "0.1.0"
+authors = ["The Chromium Authors"]
+edition = "2018"
+
+[dependencies]
+mojom-syntax = { path = "../syntax" }
+
+glob = "0.3"
