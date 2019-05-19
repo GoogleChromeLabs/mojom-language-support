@@ -1,0 +1,97 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Mojom",
+	"patterns": [
+		{
+			"include": "#block_comment"
+		},
+		{
+			"include": "#line_comment"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#core_types"
+		}
+	],
+	"repository": {
+		"block_comment": {
+			"comment": "Block comment",
+			"name": "comment.block.mojom",
+			"begin": "/\\*",
+			"end": "\\*/",
+			"patterns": [
+				{
+					"include": "#block_comment"
+				}
+			]
+		},
+		"line_comment": {
+			"comment": "Single-line comment",
+			"name": "comment.line.mojom",
+			"begin": "//",
+			"end": "$",
+			"patterns": []
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.mojom",
+					"match": "\\b(if|while|for|return)\\b"
+				},
+				{
+					"name": "keyword.others.interface",
+					"match": "\\binterface\\b"
+				},
+				{
+					"name": "keyword.others.struct",
+					"match": "\\bstruct\\b"
+				},
+				{
+					"name": "keyword.others.enum",
+					"match": "\\benum\\b"
+				},
+				{
+					"name": "keyword.others.const",
+					"match": "\\bconst\\b"
+				},
+				{
+					"name": "keyword.others.module",
+					"match": "\\bmodule\\b"
+				},
+				{
+					"name": "keyword.others.import",
+					"match": "\\bimport\\b"
+				},
+				{
+					"name": "constant.language.boolean.mojom",
+					"match": "\\b(true|false)\\b"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.mojom",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.mojom",
+					"match": "\\\\."
+				}
+			]
+		},
+		"core_types": {
+			"patterns": [
+				{
+					"name": "storage.type.core.mojom",
+					"match": "\\b(bool|int8|uint8|int16|uint16|int32|uint32|int64|uint64|float|double|string)\\b"
+				}
+			]
+		}
+	},
+	"scopeName": "source.mojom"
+}
