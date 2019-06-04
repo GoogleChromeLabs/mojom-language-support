@@ -689,6 +689,8 @@ mod tests {
         parse_type!("handle<message_pipe>");
         parse_type!("pending_receiver<MyInterface>");
         parse_type!("pending_remote<mymodule.MyInterface>");
+        parse_type!("pending_associated_remote<FooInterface>?");
+        parse_type!("pending_associated_receiver<FooInterface>");
         parse_type!("handle<message_pipe>");
         parse_type!("string");
         parse_type!("array<uint8>");

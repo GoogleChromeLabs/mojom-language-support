@@ -73,7 +73,9 @@ type_spec = {
 }
 type_name = { fixed_array | array | map | interface_request | basic_type_name }
 basic_type_name = {
-  numeric_type | handle_type | t_associated ~ identifier | identifier |
+  numeric_type | handle_type |
+  associated_remote_type | associated_receiver_type |
+  t_associated ~ identifier | identifier |
   remote_type | receiver_type
 }
 numeric_type = {
@@ -94,6 +96,8 @@ interface_request = {
 }
 remote_type = { "pending_remote" ~ t_langlebracket ~ identifier ~ t_ranglebracket }
 receiver_type = { "pending_receiver" ~ t_langlebracket ~ identifier ~ t_ranglebracket }
+associated_remote_type = { "pending_associated_remote" ~ t_langlebracket ~ identifier ~ t_ranglebracket }
+associated_receiver_type = { "pending_associated_receiver" ~ t_langlebracket ~ identifier ~ t_ranglebracket }
 
 const_stmt = {
   attribute_section? ~ t_const ~ type_spec ~ name ~ t_equal ~ constant ~ t_semicolon
