@@ -86,6 +86,7 @@ impl ResponseError {
     }
 }
 
+#[allow(unused)]
 pub(crate) enum ErrorCodes {
     // Defined by JSON RPC
     ParseError,

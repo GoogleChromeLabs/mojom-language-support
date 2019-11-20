@@ -33,6 +33,7 @@ fn create_server_capabilities() -> lsp_types::ServerCapabilities {
         document_range_formatting_provider: None,
         document_on_type_formatting_provider: None,
         rename_provider: None,
+        document_link_provider: None,
         color_provider: None,
         folding_range_provider: None,
         execute_command_provider: None,

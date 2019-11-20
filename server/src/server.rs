@@ -255,6 +255,7 @@ mod tests {
         let capabilities = lsp_types::ClientCapabilities {
             workspace: None,
             text_document: None,
+            window: None,
             experimental: None,
         };
         let params = lsp_types::InitializeParams {

@@ -18,8 +18,8 @@ pub enum Traversal<'a> {
 }
 
 enum Node<'a> {
-    Leaf(&'a Leaf),
-    NonLeaf(&'a NonLeaf),
+    Leaf(&'a dyn Leaf),
+    NonLeaf(&'a dyn NonLeaf),
 }
 
 trait Leaf {
@@ -121,8 +121,8 @@ impl NonLeaf for Struct {
 }
 
 enum TraversalState<'a> {
-    NonLeaf(&'a NonLeaf),
-    Child(&'a NonLeaf, usize),
+    NonLeaf(&'a dyn NonLeaf),
+    Child(&'a dyn NonLeaf, usize),
 }
 
 pub struct Preorder<'a> {
