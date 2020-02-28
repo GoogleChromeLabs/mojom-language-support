@@ -85,7 +85,7 @@ numeric_type = {
 handle_type = { t_handle ~ (t_langlebracket ~ specific_handle_type ~ t_ranglebracket)? }
 specific_handle_type = {
   "message_pipe" | "shared_buffer" | "data_pipe_consumer" |
-  "data_pipe_producer"
+  "data_pipe_producer" | "platform"
 }
 array = { t_array ~ t_langlebracket ~ type_spec ~ t_ranglebracket }
 fixed_array = { t_array ~ t_langlebracket ~ type_spec ~ t_comma ~ int_const_dec ~ t_ranglebracket }
