@@ -15,8 +15,10 @@ fn create_server_capabilities() -> lsp_types::ServerCapabilities {
 
     let text_document_sync = lsp_types::TextDocumentSyncCapability::Options(options);
 
+    // TODO: Understand each field and avoid using None if applicable.
     lsp_types::ServerCapabilities {
         text_document_sync: Some(text_document_sync),
+        selection_range_provider: None,
         hover_provider: None,
         completion_provider: None,
         signature_help_provider: None,
@@ -36,8 +38,10 @@ fn create_server_capabilities() -> lsp_types::ServerCapabilities {
         document_link_provider: None,
         color_provider: None,
         folding_range_provider: None,
+        declaration_provider: Some(false),
         execute_command_provider: None,
         workspace: None,
+        experimental: None,
     }
 }
 
@@ -67,6 +71,10 @@ pub(crate) fn initialize(
     let capabilities = create_server_capabilities();
     let res = lsp_types::InitializeResult {
         capabilities: capabilities,
+        server_info: Some(lsp_types::ServerInfo {
+            name: "mojom-lsp".to_string(),
+            version: Some("0.1.0".to_string()),
+        }),
     };
     write_success_result(writer, id, res)?;
 

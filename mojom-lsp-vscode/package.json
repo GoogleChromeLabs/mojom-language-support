@@ -5,7 +5,7 @@
 	"version": "0.1.0",
 	"categories": [],
 	"engines": {
-		"vscode": "^1.23.0"
+		"vscode": "^1.34.0"
 	},
 	"activationEvents": [
 		"onLanguage:mojom"
@@ -15,10 +15,6 @@
 		"languages": [
 			{
 				"id": "mojom",
-				"aliases": [
-					"Mojom",
-					"mojom"
-				],
 				"extensions": [
 					".mojom"
 				],
@@ -40,8 +36,8 @@
 		"postinstall": "cd client && npm install && cd .."
 	},
 	"devDependencies": {
-		"@types/node": "^8.0.0",
-		"tslint": "^5.11.0",
-		"typescript": "^3.1.3"
+		"@types/node": "^10.14.17",
+		"tslint": "^5.16.0",
+		"typescript": "^3.7.5"
 	}
 }

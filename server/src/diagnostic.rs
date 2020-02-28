@@ -173,6 +173,7 @@ impl Diagnostic {
                     source: Some("mojom-lsp".to_owned()),
                     message: err.to_string(),
                     related_information: None,
+                    tags: None,
                 };
                 vec![diagnostic]
             }
@@ -181,6 +182,8 @@ impl Diagnostic {
         let params = lsp_types::PublishDiagnosticsParams {
             uri: uri,
             diagnostics: diagnostics,
+            // TODO: Support version
+            version: None,
         };
         publish_diagnostics(&self.msg_sender, params);
     }

@@ -22,6 +22,7 @@ fn partial_text<'a>(text: &'a str, range: &mojom_syntax::Range) -> &'a str {
     &text[range.start..range.end]
 }
 
+// TODO: share impl with Diagnostic::check_syntax()
 fn create_diagnostic(
     text: &str,
     range: &mojom_syntax::Range,
@@ -37,6 +38,7 @@ fn create_diagnostic(
         source: Some("mojom-lsp".to_owned()),
         message: message,
         related_information: None,
+        tags: None,
     }
 }
 

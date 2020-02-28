@@ -260,12 +260,13 @@ mod tests {
         };
         let params = lsp_types::InitializeParams {
             process_id: None,
-            root_path: None,
+            root_path: None, // TODO: Stop using this deprecated field.
             root_uri: None,
             initialization_options: None,
             capabilities: capabilities,
             trace: None,
             workspace_folders: None,
+            client_info: None,
         };
         let params = serde_json::to_value(&params).unwrap();
 
