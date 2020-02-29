@@ -3,12 +3,12 @@ use std::path::PathBuf;
 
 use serde_json::Value;
 
-use crate::protocol::{
+use super::protocol::{
     self, read_message, ErrorCodes, Message, NotificationMessage, RequestMessage, ResponseError,
 };
 
-use crate::diagnostic::{start_diagnostics_thread, DiagnosticsThread};
-use crate::messagesender::{start_message_sender_thread, MessageSender};
+use super::diagnostic::{start_diagnostics_thread, DiagnosticsThread};
+use super::messagesender::{start_message_sender_thread, MessageSender};
 
 #[derive(Debug)]
 pub enum ServerError {
@@ -194,18 +194,15 @@ fn did_change_text_document(
     ctx.diag.check(uri, text);
 }
 
-fn get_root_path(params: &lsp_types::InitializeParams) -> PathBuf {
-    if let Some(ref uri) = params.root_uri.as_ref() {
-        if uri.scheme() == "file" {
-            if let Ok(path) = uri.to_file_path() {
-                return path;
-            }
-        }
+fn get_root_path(params: &lsp_types::InitializeParams) -> Option<PathBuf> {
+    let uri = match params.root_uri {
+        Some(ref uri) => uri,
+        None => return None,
+    };
+    match uri.to_file_path() {
+        Ok(path) => Some(path),
+        Err(_) => None,
     }
-    if let Some(ref path) = params.root_path.as_ref() {
-        return PathBuf::from(path);
-    }
-    PathBuf::new()
 }
 
 // Returns exit code.
@@ -219,7 +216,7 @@ where
 
     let params = crate::initialization::initialize(&mut reader, &mut writer)?;
 
-    let root_path = get_root_path(&params);
+    let root_path = get_root_path(&params).unwrap_or(PathBuf::new());
 
     let msg_sender_thread = start_message_sender_thread(writer);
     let diag = start_diagnostics_thread(root_path, msg_sender_thread.get_sender());
@@ -258,9 +255,10 @@ mod tests {
             window: None,
             experimental: None,
         };
+        #[allow(deprecated)]
         let params = lsp_types::InitializeParams {
             process_id: None,
-            root_path: None, // TODO: Stop using this deprecated field.
+            root_path: None,
             root_uri: None,
             initialization_options: None,
             capabilities: capabilities,

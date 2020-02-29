@@ -7,10 +7,22 @@ use std::thread::{self, JoinHandle};
 
 use lsp_types::Url as Uri;
 
-use crate::imported_files::{check_imports, ImportedFiles};
-use crate::messagesender::MessageSender;
-use crate::mojomast::MojomAst;
-use crate::protocol::NotificationMessage;
+use super::imported_files::{check_imports, ImportedFiles};
+use super::messagesender::MessageSender;
+use super::mojomast::MojomAst;
+use super::protocol::NotificationMessage;
+
+pub(crate) fn create_diagnostic(range: lsp_types::Range, message: String) -> lsp_types::Diagnostic {
+    lsp_types::Diagnostic {
+        range: range,
+        severity: Some(lsp_types::DiagnosticSeverity::Error),
+        code: Some(lsp_types::NumberOrString::String("mojom".to_owned())),
+        source: Some("mojom-lsp".to_owned()),
+        message: message,
+        related_information: None,
+        tags: None,
+    }
+}
 
 enum DiagnosticMessage {
     CheckSyntax((Uri, String)),
@@ -166,15 +178,7 @@ impl Diagnostic {
                 self.ast = None;
                 let (start, end) = err.range();
                 let range = into_lsp_range(&start, &end);
-                let diagnostic = lsp_types::Diagnostic {
-                    range: range,
-                    severity: Some(lsp_types::DiagnosticSeverity::Error),
-                    code: Some(lsp_types::NumberOrString::String("mojom".to_owned())),
-                    source: Some("mojom-lsp".to_owned()),
-                    message: err.to_string(),
-                    related_information: None,
-                    tags: None,
-                };
+                let diagnostic = create_diagnostic(range, err.to_string());
                 vec![diagnostic]
             }
         };

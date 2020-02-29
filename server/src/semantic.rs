@@ -1,6 +1,8 @@
 use mojom_syntax::Error as SyntaxError;
 use mojom_syntax::{Module, MojomFile};
 
+use super::diagnostic;
+
 #[derive(Debug)]
 pub(crate) enum Error {
     SyntaxError(String),
@@ -22,26 +24,6 @@ fn partial_text<'a>(text: &'a str, range: &mojom_syntax::Range) -> &'a str {
     &text[range.start..range.end]
 }
 
-// TODO: share impl with Diagnostic::check_syntax()
-fn create_diagnostic(
-    text: &str,
-    range: &mojom_syntax::Range,
-    message: String,
-) -> lsp_types::Diagnostic {
-    let start = mojom_syntax::line_col(text, range.start).unwrap();
-    let end = mojom_syntax::line_col(text, range.end).unwrap();
-    let range = crate::diagnostic::into_lsp_range(&start, &end);
-    lsp_types::Diagnostic {
-        range: range,
-        severity: Some(lsp_types::DiagnosticSeverity::Error),
-        code: Some(lsp_types::NumberOrString::String("mojom".to_owned())),
-        source: Some("mojom-lsp".to_owned()),
-        message: message,
-        related_information: None,
-        tags: None,
-    }
-}
-
 fn find_module(
     text: &str,
     mojom: &MojomFile,
@@ -57,7 +39,10 @@ fn find_module(
                         partial_text(&text, &module.name),
                         partial_text(&text, &stmt.name)
                     );
-                    let diagnostic = create_diagnostic(&text, &stmt.name, message);
+                    let start = mojom_syntax::line_col(text, stmt.name.start).unwrap();
+                    let end = mojom_syntax::line_col(text, stmt.name.end).unwrap();
+                    let range = diagnostic::into_lsp_range(&start, &end);
+                    let diagnostic = diagnostic::create_diagnostic(range, message);
                     diagnostics.push(diagnostic);
                 } else {
                     module = Some(stmt.clone());

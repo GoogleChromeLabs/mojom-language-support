@@ -1,8 +1,8 @@
 use std::io::{BufRead, Write};
 
-use crate::protocol::{read_message, write_success_result, Message};
+use super::protocol::{read_message, write_success_result, Message};
 
-use crate::server::ServerError;
+use super::server::ServerError;
 
 fn create_server_capabilities() -> lsp_types::ServerCapabilities {
     let options = lsp_types::TextDocumentSyncOptions {

@@ -2,7 +2,7 @@ use lsp_types::{Location, Position, Range};
 
 use mojom_syntax::{preorder, Traversal};
 
-use crate::mojomast::MojomAst;
+use super::mojomast::MojomAst;
 
 pub(crate) fn create_lsp_range(ast: &MojomAst, field: &mojom_syntax::Range) -> Range {
     let pos = ast.line_col(field.start);

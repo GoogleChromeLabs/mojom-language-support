@@ -6,8 +6,9 @@ use lsp_types::{Location, Range, Url};
 
 use mojom_syntax::{preorder, Traversal};
 
-use crate::definition::create_lsp_range;
-use crate::mojomast::MojomAst;
+use super::definition::create_lsp_range;
+use super::mojomast::MojomAst;
+use super::semantic;
 
 #[derive(Debug)]
 struct ImportDefinition {
@@ -117,7 +118,7 @@ fn parse_imported<P: AsRef<Path>>(path: P) -> ImportResult {
     let uri = Url::from_file_path(&path).unwrap();
 
     // TODO: Maybe store semantics errors.
-    let analysis = crate::semantic::check_semantics(&text, &mojom);
+    let analysis = semantic::check_semantics(&text, &mojom);
     let ast = MojomAst::from_mojom(uri, text, mojom, analysis.module);
 
     let mut path = Vec::new();
@@ -182,7 +183,7 @@ mod tests {
             .unwrap();
         let uri = create_uri(&file_path);
         let mojom = mojom_syntax::parse(&text).unwrap();
-        let analytics = crate::semantic::check_semantics(&text, &mojom);
+        let analytics = semantic::check_semantics(&text, &mojom);
         let ast = MojomAst::from_mojom(uri, text, mojom, analytics.module);
 
         let imports = check_imports(&root_path, &ast);

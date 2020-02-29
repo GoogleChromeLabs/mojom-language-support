@@ -4,7 +4,7 @@ use std::thread;
 
 use serde_json::Value;
 
-use crate::protocol::{self, NotificationMessage, ResponseError};
+use super::protocol::{self, NotificationMessage, ResponseError};
 
 struct SuccessResponse {
     id: u64,
