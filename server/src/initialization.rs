@@ -1,8 +1,8 @@
 use std::io::{BufRead, Write};
 
-use super::protocol::{read_message, write_success_result, Message};
+use anyhow::anyhow;
 
-use super::server::ServerError;
+use super::protocol::{read_message, write_success_result, Message};
 
 fn create_server_capabilities() -> lsp_types::ServerCapabilities {
     let options = lsp_types::TextDocumentSyncOptions {
@@ -48,7 +48,7 @@ fn create_server_capabilities() -> lsp_types::ServerCapabilities {
 pub(crate) fn initialize(
     reader: &mut impl BufRead,
     writer: &mut impl Write,
-) -> std::result::Result<lsp_types::InitializeParams, ServerError> {
+) -> anyhow::Result<lsp_types::InitializeParams> {
     use lsp_types::notification::Notification;
     use lsp_types::request::Request;
 
@@ -56,15 +56,15 @@ pub(crate) fn initialize(
     let (id, params) = match message {
         Message::Request(req) => {
             if req.method != lsp_types::request::Initialize::METHOD {
-                let error_message = format!("Expected initialize message but got {:?}", req.method);
-                return Err(ServerError::ProtocolError(error_message));
+                let error_message = anyhow!("Expected initialize message but got {:?}", req.method);
+                return Err(error_message);
             }
             let params = serde_json::from_value::<lsp_types::InitializeParams>(req.params)?;
             (req.id, params)
         }
         _ => {
-            let error_message = format!("Expected initialize message but got {:?}", message);
-            return Err(ServerError::ProtocolError(error_message));
+            let error_message = anyhow!("Expected initialize message but got {:?}", message);
+            return Err(error_message);
         }
     };
 
@@ -83,13 +83,13 @@ pub(crate) fn initialize(
         Message::Notofication(notif) => {
             if notif.method != lsp_types::notification::Initialized::METHOD {
                 let error_message =
-                    format!("Expected initialized message but got {:?}", notif.method);
-                return Err(ServerError::ProtocolError(error_message));
+                    anyhow!("Expected initialized message but got {:?}", notif.method);
+                return Err(error_message);
             }
         }
         _ => {
-            let error_message = format!("Expected initialized message but got {:?}", message);
-            return Err(ServerError::ProtocolError(error_message));
+            let error_message = anyhow!("Expected initialized message but got {:?}", message);
+            return Err(error_message);
         }
     };
 

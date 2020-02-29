@@ -1,19 +1,6 @@
-use mojom_syntax::Error as SyntaxError;
 use mojom_syntax::{Module, MojomFile};
 
 use super::diagnostic;
-
-#[derive(Debug)]
-pub(crate) enum Error {
-    SyntaxError(String),
-}
-
-impl<'a> From<SyntaxError<'a>> for Error {
-    fn from(err: SyntaxError<'a>) -> Error {
-        let msg = format!("{:?}", err);
-        Error::SyntaxError(msg)
-    }
-}
 
 pub(crate) struct Analysis {
     pub(crate) module: Option<Module>,

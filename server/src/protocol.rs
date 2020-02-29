@@ -1,18 +1,8 @@
 use std::io::{self, Write};
 
+use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_slice, Value};
-
-#[derive(Debug)]
-pub(crate) struct ProtocolError(pub String);
-
-impl From<io::Error> for ProtocolError {
-    fn from(err: io::Error) -> ProtocolError {
-        ProtocolError(err.to_string())
-    }
-}
-
-pub(crate) type Result<T> = std::result::Result<T, ProtocolError>;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -58,7 +48,7 @@ pub(crate) fn write_request(
     id: u64,
     method: &str,
     params: Value,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let message = JsonRpcRequestMessage {
         jsonrpc: "2.0",
         id: id,
@@ -175,13 +165,13 @@ fn read_header(reader: &mut impl io::BufRead) -> io::Result<Header> {
         ))
 }
 
-pub(crate) fn read_message(reader: &mut impl io::BufRead) -> Result<Message> {
+pub(crate) fn read_message(reader: &mut impl io::BufRead) -> anyhow::Result<Message> {
     let header = read_header(reader)?;
     let mut buf = vec![0; header.content_length];
     reader.read_exact(&mut buf)?;
     match Message::from_slice(&buf) {
         Ok(message) => Ok(message),
-        Err(_) => Err(ProtocolError("Failed to parse message".to_owned())),
+        Err(_) => Err(anyhow!("Failed to parse message")),
     }
 }
 
@@ -195,12 +185,8 @@ struct JsonRpcResponseMessage<'a> {
     pub error: Option<ResponseError>,
 }
 
-fn write_message<M: Serialize>(writer: &mut impl Write, message: M) -> Result<()> {
-    let message = serde_json::to_string(&message).map_err(|err| {
-        let error_message = err.to_string();
-        ProtocolError(error_message)
-    })?;
-
+fn write_message<M: Serialize>(writer: &mut impl Write, message: M) -> anyhow::Result<()> {
+    let message = serde_json::to_string(&message)?;
     let content_length = message.len();
 
     write!(writer, "Content-Length: {}\r\n\r\n", content_length)?;
@@ -209,14 +195,15 @@ fn write_message<M: Serialize>(writer: &mut impl Write, message: M) -> Result<()
     Ok(())
 }
 
-pub(crate) fn write_success_result<R>(writer: &mut impl Write, id: u64, res: R) -> Result<()>
+pub(crate) fn write_success_result<R>(
+    writer: &mut impl Write,
+    id: u64,
+    res: R,
+) -> anyhow::Result<()>
 where
     R: serde::Serialize,
 {
-    let res = serde_json::to_value(&res).map_err(|err| {
-        let error_message = err.to_string();
-        ProtocolError(error_message)
-    })?;
+    let res = serde_json::to_value(&res)?;
     write_success_response(writer, id, res)
 }
 
@@ -224,7 +211,7 @@ pub(crate) fn write_success_response(
     writer: &mut impl Write,
     id: u64,
     result: Value,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let message = JsonRpcResponseMessage {
         jsonrpc: "2.0",
         id: id,
@@ -238,7 +225,7 @@ pub(crate) fn write_error_response(
     writer: &mut impl Write,
     id: u64,
     error: ResponseError,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let message = JsonRpcResponseMessage {
         jsonrpc: "2.0",
         id: id,
@@ -259,7 +246,7 @@ pub(crate) fn write_notification(
     writer: &mut impl Write,
     method: &str,
     params: Value,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let message = JsonRpcNotificationMessage {
         jsonrpc: "2.0",
         method: method,

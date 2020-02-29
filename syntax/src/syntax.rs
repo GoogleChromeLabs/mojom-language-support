@@ -464,13 +464,13 @@ type PestError = pest::error::Error<Rule>;
 
 /// Represents a syntax error.
 #[derive(Debug)]
-pub struct Error<'a> {
+pub struct SyntaxError<'a> {
     input: &'a str,
     pest_err: PestError,
     span: (usize, usize),
 }
 
-impl<'a> Error<'a> {
+impl<'a> SyntaxError<'a> {
     /// Returns `start` and `end` positions of the error.
     pub fn range(&self) -> (LineCol, LineCol) {
         let (start, end) = self.span;
@@ -480,7 +480,7 @@ impl<'a> Error<'a> {
     }
 }
 
-impl<'a> std::fmt::Display for Error<'a> {
+impl<'a> std::fmt::Display for SyntaxError<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.pest_err)
     }
@@ -501,8 +501,8 @@ fn find_token_end_position(input: &str, start: usize) -> usize {
     end
 }
 
-impl<'a> Error<'a> {
-    fn new(input: &str, err: PestError) -> Error {
+impl<'a> SyntaxError<'a> {
+    fn new(input: &str, err: PestError) -> SyntaxError {
         let span = match &err.location {
             pest::error::InputLocation::Pos(start) => {
                 let end = find_token_end_position(&input, *start);
@@ -510,7 +510,7 @@ impl<'a> Error<'a> {
             }
             pest::error::InputLocation::Span((start, end)) => (*start, *end),
         };
-        Error {
+        SyntaxError {
             input: input,
             pest_err: err,
             span: span,
@@ -558,8 +558,8 @@ fn build_syntax_tree(mut pairs: Pairs) -> MojomFile {
 }
 
 /// Parses `input` into a syntax tree.
-pub fn parse(input: &str) -> Result<MojomFile, Error> {
-    let pairs = parse_input(input).map_err(|err| Error::new(input, err))?;
+pub fn parse(input: &str) -> Result<MojomFile, SyntaxError> {
+    let pairs = parse_input(input).map_err(|err| SyntaxError::new(input, err))?;
     let mojom = build_syntax_tree(pairs);
     Ok(mojom)
 }

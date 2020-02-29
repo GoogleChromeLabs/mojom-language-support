@@ -4,29 +4,11 @@ use std::path::PathBuf;
 use serde_json::Value;
 
 use super::protocol::{
-    self, read_message, ErrorCodes, Message, NotificationMessage, RequestMessage, ResponseError,
+    read_message, ErrorCodes, Message, NotificationMessage, RequestMessage, ResponseError,
 };
 
 use super::diagnostic::{start_diagnostics_thread, DiagnosticsThread};
 use super::messagesender::{start_message_sender_thread, MessageSender};
-
-#[derive(Debug)]
-pub enum ServerError {
-    ProtocolError(String),
-}
-
-impl From<protocol::ProtocolError> for ServerError {
-    fn from(err: protocol::ProtocolError) -> ServerError {
-        ServerError::ProtocolError(err.0)
-    }
-}
-
-impl From<serde_json::Error> for ServerError {
-    fn from(err: serde_json::Error) -> ServerError {
-        let msg = format!("Invalid json message: {}", err);
-        ServerError::ProtocolError(msg)
-    }
-}
 
 #[derive(PartialEq)]
 enum State {
@@ -64,10 +46,7 @@ fn get_request_params<P: serde::de::DeserializeOwned>(
         .map_err(|err| ResponseError::new(ErrorCodes::InvalidRequest, err.to_string()))
 }
 
-fn handle_request(
-    ctx: &mut ServerContext,
-    msg: RequestMessage,
-) -> std::result::Result<(), ServerError> {
+fn handle_request(ctx: &mut ServerContext, msg: RequestMessage) -> anyhow::Result<()> {
     let id = msg.id;
     let method = msg.method.as_str();
 
@@ -132,16 +111,11 @@ fn goto_definition_request(
 
 // Notifications
 
-fn get_params<P: serde::de::DeserializeOwned>(
-    params: Value,
-) -> std::result::Result<P, ServerError> {
-    serde_json::from_value::<P>(params).map_err(|err| ServerError::ProtocolError(err.to_string()))
+fn get_params<P: serde::de::DeserializeOwned>(params: Value) -> anyhow::Result<P> {
+    serde_json::from_value::<P>(params).map_err(|err| err.into())
 }
 
-fn handle_notification(
-    ctx: &mut ServerContext,
-    msg: NotificationMessage,
-) -> std::result::Result<(), ServerError> {
+fn handle_notification(ctx: &mut ServerContext, msg: NotificationMessage) -> anyhow::Result<()> {
     use lsp_types::notification::*;
     match msg.method.as_str() {
         Exit::METHOD => exit_notification(ctx),
@@ -206,7 +180,7 @@ fn get_root_path(params: &lsp_types::InitializeParams) -> Option<PathBuf> {
 }
 
 // Returns exit code.
-pub fn start<R, W>(reader: R, writer: W) -> std::result::Result<i32, ServerError>
+pub fn start<R, W>(reader: R, writer: W) -> anyhow::Result<i32>
 where
     R: Read,
     W: Write + Send + 'static,
@@ -239,7 +213,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::{read_message, write_notification, write_request};
+    use crate::protocol::{self, read_message, write_notification, write_request};
 
     use lsp_types::notification::*;
     use lsp_types::request::*;

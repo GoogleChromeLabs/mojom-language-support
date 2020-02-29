@@ -2,15 +2,6 @@ use pest::Parser;
 
 use crate::parser::{consume_token, MojomParser, Pairs, Rule};
 
-#[derive(Debug)]
-pub struct Error(String);
-
-impl From<pest::error::Error<Rule>> for Error {
-    fn from(err: pest::error::Error<Rule>) -> Error {
-        Error(err.to_string())
-    }
-}
-
 // TODO: Support pending_receiver<T> and pending_remote<T>.
 #[derive(Debug, PartialEq)]
 pub enum TypeName {
@@ -125,7 +116,7 @@ fn into_type_spec(mut pairs: Pairs) -> TypeSpec {
     }
 }
 
-pub fn typespec(input: &str) -> std::result::Result<TypeSpec, Error> {
+pub fn typespec(input: &str) -> anyhow::Result<TypeSpec> {
     let mut pairs = MojomParser::parse(Rule::type_spec, input)?;
     let inner = pairs.next().unwrap().into_inner();
     Ok(into_type_spec(inner))
