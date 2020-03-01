@@ -49,6 +49,7 @@ fn get_request_params<P: serde::de::DeserializeOwned>(
 fn handle_request(ctx: &mut ServerContext, msg: RequestMessage) -> anyhow::Result<()> {
     let id = msg.id;
     let method = msg.method.as_str();
+    log::debug!("[recv] Request: id = {}, method = {}", id, method);
 
     // Workaround for Eglot. It sends "exit" as a request, not as a notification.
     if method == "exit" {
@@ -116,6 +117,8 @@ fn get_params<P: serde::de::DeserializeOwned>(params: Value) -> anyhow::Result<P
 }
 
 fn handle_notification(ctx: &mut ServerContext, msg: NotificationMessage) -> anyhow::Result<()> {
+    log::debug!("[recv] Notification: method = {}", msg.method);
+
     use lsp_types::notification::*;
     match msg.method.as_str() {
         Exit::METHOD => exit_notification(ctx),
@@ -126,18 +129,14 @@ fn handle_notification(ctx: &mut ServerContext, msg: NotificationMessage) -> any
             get_params(msg.params).map(|params| did_change_text_document(ctx, params))?;
         }
         // Accept following notifications but do nothing.
-        DidChangeConfiguration::METHOD => do_nothing(&msg),
-        WillSaveTextDocument::METHOD => do_nothing(&msg),
-        DidSaveTextDocument::METHOD => do_nothing(&msg),
+        DidChangeConfiguration::METHOD => (),
+        WillSaveTextDocument::METHOD => (),
+        DidSaveTextDocument::METHOD => (),
         _ => {
-            eprintln!("Received unimplemented notification: {:#?}", msg);
+            log::warn!("Received unimplemented notification: {:#?}", msg);
         }
     }
     Ok(())
-}
-
-fn do_nothing(msg: &NotificationMessage) {
-    eprintln!("Received `{}` but do nothing.", msg.method.as_str());
 }
 
 fn exit_notification(ctx: &mut ServerContext) {

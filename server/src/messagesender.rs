@@ -6,16 +6,19 @@ use serde_json::Value;
 
 use super::protocol::{self, NotificationMessage, ResponseError};
 
+#[derive(Debug)]
 struct SuccessResponse {
     id: u64,
     result: Value,
 }
 
+#[derive(Debug)]
 struct ErrorResponse {
     id: u64,
     err: ResponseError,
 }
 
+#[derive(Debug)]
 enum SendingMessage {
     SuccessResponse(SuccessResponse),
     ErrorResponse(ErrorResponse),
@@ -27,23 +30,30 @@ pub(crate) struct MessageSender {
     sender: Sender<SendingMessage>,
 }
 
-// TODO: Make sure using unwrap() makes sense.
 impl MessageSender {
     pub(crate) fn send_success_response(&self, id: u64, res: Value) {
+        log::debug!("[send] Success: id = {}", id);
         let msg = SendingMessage::SuccessResponse(SuccessResponse {
             id: id,
             result: res,
         });
-        self.sender.send(msg).unwrap();
+        self.send(msg);
     }
 
     pub(crate) fn send_error_response(&self, id: u64, err: ResponseError) {
+        log::debug!("[send] Error: message = '{}'", err.message);
         let msg = SendingMessage::ErrorResponse(ErrorResponse { id: id, err: err });
-        self.sender.send(msg).unwrap();
+        self.send(msg);
     }
 
     pub(crate) fn send_notification(&self, notif: NotificationMessage) {
+        log::debug!("[send] {}", notif.method);
         let msg = SendingMessage::Notification(notif);
+        self.send(msg);
+    }
+
+    fn send(&self, msg: SendingMessage) {
+        // TODO: Make sure using unwrap() makes sense.
         self.sender.send(msg).unwrap();
     }
 }

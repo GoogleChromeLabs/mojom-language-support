@@ -7,10 +7,12 @@ edition = "2018"
 [dependencies]
 mojom-syntax = { path = "../syntax" }
 
+anyhow = "1.0.26"
+env_logger = { version = "0.7.1", default-features = false }
+log = "0.4.8"
 lsp-types = "0.71"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-anyhow = "1.0.26"
 
 [dev-dependencies]
 pipe = "0.2"
