@@ -16,19 +16,19 @@ mojom-lsp is at an early stage of development and you need to build it from sour
 $ cargo build --release -p mojom-lsp-server
 ```
 
-The server will be generated as `./target/release/mojom-lsp-server`. Copy the binary into your `$PATH`, or add `./target/release` to your `$PATH`.
+The server will be generated as `target/release/mojom-lsp-server`. Copy the binary into your `$PATH`, or add `target/release` to your `$PATH`.
 
 ### Editor settings
 
-mojom-lsp assumes that your LSP client sends `rootUri` (or `rootPath`) in the `initialize` request. `rootUri` should specifie the `src` directory of your Chromium working directory.
+mojom-lsp assumes that your LSP client sends `rootUri` in the `initialize` request. `rootUri` should be a path that contains the `src` directory of your Chromium working directory.
 
 ### Syntax highlighting
 
-mojom-lsp doesn't provide syntax highlighting for now. This means that you need to have editor specific configuration to get syntax highlighting.
+mojom-lsp itself doesn't provide syntax highlighting for now. You need to configure your editor to get syntax highlighting.
 
 #### Vim
 
-Use [mojom.vim](https://chromium.googlesource.com/chromium/src.git/+/refs/heads/master/tools/vim/mojom/syntax/mojom.vim) in the chromium repository.
+The Chromium repository provides basic [mojom](https://chromium.googlesource.com/chromium/src.git/+/refs/heads/master/tools/vim/mojom/) support.
 
 #### Emacs
 

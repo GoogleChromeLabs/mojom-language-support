@@ -167,15 +167,46 @@ fn did_change_text_document(
     ctx.diag.check(uri, text);
 }
 
+fn is_chromium_src_dir(path: &PathBuf) -> bool {
+    // The root is named `src`.
+    if !path.file_name().map(|name| name == "src").unwrap_or(false) {
+        return false;
+    }
+
+    // Check if the parent directory contains `.gclient`.
+    match path.parent() {
+        Some(parent) => parent.join(".gclient").is_file(),
+        None => false,
+    }
+}
+
+fn find_chromium_src_dir(mut path: PathBuf) -> PathBuf {
+    if is_chromium_src_dir(&path) {
+        return path;
+    }
+
+    let original = path.clone();
+    while path.pop() {
+        if is_chromium_src_dir(&path) {
+            return path;
+        }
+    }
+    original
+}
+
 fn get_root_path(params: &lsp_types::InitializeParams) -> Option<PathBuf> {
     let uri = match params.root_uri {
         Some(ref uri) => uri,
         None => return None,
     };
-    match uri.to_file_path() {
-        Ok(path) => Some(path),
-        Err(_) => None,
-    }
+    let path = match uri.to_file_path() {
+        Ok(path) => path,
+        Err(_) => return None,
+    };
+
+    // Try to find chromium's `src` directory and use it if exists.
+    let path = find_chromium_src_dir(path);
+    Some(path)
 }
 
 // Returns exit code.
