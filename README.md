@@ -1,6 +1,7 @@
 # mojom-lsp
 
 A language server for Chromium mojom files. It supports:
+
 - Syntax check
 - Goto definition
 
@@ -56,79 +57,14 @@ An easy way to get syntax highliting is to use `define-generic-mode` like below:
 
 Use [mojom-lsp-vscode](./mojom-lsp-vscode) extension.
 
-## Supported messages
+# License
 
-General:
+Apache-2.0
 
-- [ ] `$/cancelRequest`
-- [x] `initialize`
-- [x] `initialized`
-- [x] `shutdown`
-- [x] `exit`
+# Contributing
 
-Window:
+See [CONTRIBUTING.md](CONTRIBUTING.md) file.
 
-- [ ] `window/showMessage`
-- [ ] `window/showMessageRequest`
-- [ ] `window/logMessage`
+# Disclaimer
 
-Telemetry:
-
-- [ ] `telemetry/event`
-
-Client:
-
-- [ ] `client/registerCapability`
-- [ ] `client/unregisterCapability`
-
-Workspace:
-
-- [ ] `workspace/workspaceFolders`
-- [ ] `workspace/didChangeWorkspaceFolders`
-- [ ] `workspace/didChangeWorkspaceFolders`
-- [ ] `workspace/didChangeConfiguration'`
-- [ ] `workspace/configuration`
-- [ ] `workspace/didChangeWatchedFiles`
-- [ ] `workspace/symbol`
-- [ ] `workspace/executeCommand`
-- [ ] `workspace/applyEdit`
-
-Text Synchronization:
-
-- [x] `textDocument/didOpen`
-- [x] `textDocument/didChange`
-- [ ] `textDocument/willSave`
-- [ ] `textDocument/willSaveWaitUntil`
-- [ ] `textDocument/didSave`
-- [ ] `textDocument/didClose`
-
-Diagnostics:
-
-- [x] `textDocument/publishDiagnostics`
-
-Language Features:
-
-- [ ] `textDocument/completion`
-- [ ] `completionItem/resolve`
-- [ ] `textDocument/hover`
-- [ ] `textDocument/signatureHelp`
-- [ ] `textDocument/declaration`
-- [x] `textDocument/definition`
-- [ ] `textDocument/typeDefinition`
-- [ ] `textDocument/implementation`
-- [ ] `textDocument/references`
-- [ ] `textDocument/documentHighlight`
-- [ ] `textDocument/documentSymbol`
-- [ ] `textDocument/codeAction`
-- [ ] `textDocument/codeLens`
-- [ ] `codeLens/resolve`
-- [ ] `textDocument/documentLink`
-- [ ] `documentLink/resolve`
-- [ ] `textDocument/documentColor`
-- [ ] `textDocument/colorPresentation`
-- [ ] `textDocument/formatting`
-- [ ] `textDocument/rangeFormatting'`
-- [ ] `textDocument/onTypeFormatting`
-- [ ] `textDocument/rename`
-- [ ] `textDocument/prepareRename`
-- [ ] `textDocument/foldingRange`
+This is not an officially supported Google product.
