@@ -1,0 +1,125 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Mojom",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#enums"
+    },
+    {
+      "include": "#complex-types"
+    }
+  ],
+  "repository": {
+    "keywords": {
+      "patterns": [
+        {
+          "name": "constant.language.mojom",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "keyword.other.mojom",
+          "match": "\\b(default|import|module)\\b"
+        },
+        {
+          "name": "storage.type.other.mojom",
+          "match": "\\b(string|array|handle|map|pending_associated_receiver|pending_associated_remote|pending_receiver|pending_remote)\\b"
+        },
+        {
+          "name": "storage.type.numeric.mojom",
+          "match": "\\b(bool|int8|uint8|int16|uint16|int32|uint32|int64|uint64|float|double)\\b"
+        },
+        {
+          "name": "storage.modifier.mojom",
+          "match": "\\b(const|associated)\\b"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.mojom",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.mojom",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "block_comment": {
+      "comment": "Block comment",
+      "name": "comment.block.mojom",
+      "begin": "/\\*",
+      "end": "\\*/",
+      "patterns": []
+    },
+    "line_comment": {
+      "comment": "Single-line comment",
+      "name": "comment.line.mojom",
+      "begin": "//",
+      "end": "$",
+      "patterns": []
+    },
+    "comments": {
+      "patterns": [
+        {
+          "include": "#block_comment"
+        },
+        {
+          "include": "#line_comment"
+        }
+      ]
+    },
+    "enums": {
+      "begin": "^\\s*(enum)\\s+(\\w+)",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.modifier.mojom"
+        },
+        "2": {
+          "name": "entity.name.type.enum.mojom"
+        }
+      },
+      "end": "}",
+      "name": "meta.enum.mojom",
+      "patterns": [
+        {
+          "include": "#comments"
+        }
+      ]
+    },
+    "complex-types": {
+      "begin": "^\\s*(interface|struct|union)\\s+(\\w+)",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.modifier.mojom"
+        },
+        "2": {
+          "name": "entity.name.type.struct.mojom"
+        }
+      },
+      "end": "}",
+      "name": "meta.struct.mojom",
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#strings"
+        },
+        {
+          "include": "#keywords"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.mojom"
+}
