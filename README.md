@@ -1,13 +1,11 @@
 # mojom-lsp
 
-A language server for Chromium mojom files. It supports:
+A [language server](https://microsoft.github.io/language-server-protocol/specification) implementation for [Mojom IDL](https://chromium.googlesource.com/chromium/src/+/master/mojo/public/tools/bindings/README.md). It supports:
 
 - Syntax check
 - Goto definition
 
-This server implements version 3.x of the [language server protocol](https://microsoft.github.io/language-server-protocol/specification).
-
-mojom-lsp is tested on Emacs with [eglot](https://github.com/joaotavora/eglot) and vscode with [mojom-lsp-vscode](./mojom-lsp-vscode) extension.
+mojom-lsp is tested on Visual Studio Code with [vscode-mojom-idl](./vscode-mojom-idl/README.md) extension and Emacs with [eglot](https://github.com/joaotavora/eglot).
 
 ## Setup
 
@@ -19,19 +17,23 @@ $ cargo build --release -p mojom-lsp-server
 
 The server will be generated as `target/release/mojom-lsp-server`. Copy the binary into your `$PATH`, or add `target/release` to your `$PATH`.
 
-### Editor settings
+## Editor settings
 
 mojom-lsp assumes that your LSP client sends `rootUri` in the `initialize` request. `rootUri` should be a path that contains the `src` directory of your Chromium working directory.
 
-### Syntax highlighting
+## Syntax highlighting
 
 mojom-lsp itself doesn't provide syntax highlighting for now. You need to configure your editor to get syntax highlighting.
 
-#### Vim
+### VSCode
+
+Use [vscode-mojom-idl](./vscode-mojom-idl) extension.
+
+### Vim
 
 The Chromium repository provides basic [mojom](https://chromium.googlesource.com/chromium/src.git/+/refs/heads/master/tools/vim/mojom/) support.
 
-#### Emacs
+### Emacs
 
 An easy way to get syntax highliting is to use `define-generic-mode` like below:
 
@@ -53,18 +55,14 @@ An easy way to get syntax highliting is to use `define-generic-mode` like below:
 (add-to-list 'auto-mode-alist '("\\.mojom$" . mojom-mode))
 ```
 
-#### VSCode
-
-Use [mojom-lsp-vscode](./mojom-lsp-vscode) extension.
-
-# License
+## License
 
 Apache-2.0
 
-# Contributing
+## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) file.
 
-# Disclaimer
+## Disclaimer
 
 This is not an officially supported Google product.
