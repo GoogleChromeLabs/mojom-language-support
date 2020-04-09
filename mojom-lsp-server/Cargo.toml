@@ -5,7 +5,7 @@ authors = ["The Chromium Authors"]
 edition = "2018"
 
 [dependencies]
-mojom-syntax = { path = "../syntax" }
+mojom-syntax = { path = "../mojom-syntax" }
 
 anyhow = "1.0.26"
 env_logger = { version = "0.7.1", default-features = false }

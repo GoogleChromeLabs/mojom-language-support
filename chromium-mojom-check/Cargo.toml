@@ -5,6 +5,6 @@ authors = ["The Chromium Authors"]
 edition = "2018"
 
 [dependencies]
-mojom-syntax = { path = "../syntax" }
+mojom-syntax = { path = "../mojom-syntax" }
 
 glob = "0.3"

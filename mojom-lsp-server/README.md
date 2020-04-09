@@ -15,7 +15,7 @@ mojom-lsp is at an early stage of development and you need to build it from sour
 $ cargo build --release -p mojom-lsp-server
 ```
 
-The server will be generated as `target/release/mojom-lsp-server`. Copy the binary into your `$PATH`, or add `target/release` to your `$PATH`.
+The server will be generated in `../target/release/`. Copy the binary `mojom-lsp-server` into your `$PATH`, or add `../target/release/` to your `$PATH`.
 
 ## Editor settings
 

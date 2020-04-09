@@ -2,6 +2,6 @@
 
 members = [
     "chromium-mojom-check",
-    "syntax",
-    "server",
+    "mojom-lsp-server",
+    "mojom-syntax",
 ]
