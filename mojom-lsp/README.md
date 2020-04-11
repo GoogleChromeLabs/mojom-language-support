@@ -7,15 +7,16 @@ A [language server](https://microsoft.github.io/language-server-protocol/specifi
 
 mojom-lsp is tested on Visual Studio Code with [vscode-mojom-idl](../vscode-mojom-idl) extension and Emacs with [eglot](https://github.com/joaotavora/eglot).
 
-## Setup
+## Installation
 
-mojom-lsp is at an early stage of development and you need to build it from source. mojom-lsp requires stable Rust to build.
+mojom-lsp requires stable Rust to build. Run the following command to install `mojom-lsp-server`.
 
 ```sh
-$ cargo build --release --bin mojom-lsp-server
+# This generates `mojom-lsp-server` binary.
+$ cargo install mojom-lsp
 ```
 
-The server will be generated in `target/release/`. Copy the binary `mojom-lsp-server` into your `$PATH`, or add `target/release/` to your `$PATH`.
+Be sure to include the binary to your `$PATH`.
 
 ## Editor settings
 

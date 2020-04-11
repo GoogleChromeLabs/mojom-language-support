@@ -1,19 +1,24 @@
 [package]
 name = "mojom-lsp"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["The Chromium Authors"]
 edition = "2018"
 description = "A language server for Mojom IDL"
 license = "Apache-2.0"
 repository = "https://github.com/GoogleChromeLabs/mojom-language-support"
+readme = "README.md"
 
 [[bin]]
 name = "mojom-lsp-server"
 
+[[bin]]
+name = "chromium-mojom-check"
+required-features = ["chromium-mojom-check"]
+
 [dependencies]
 anyhow = "1.0.26"
 env_logger = { version = "0.7.1", default-features = false }
-glob = "0.3"
+glob = { version = "0.3", optional = true }
 log = "0.4.8"
 lsp-types = "0.71"
 pest = "2.0"
@@ -23,3 +28,6 @@ serde_json = "1.0"
 
 [dev-dependencies]
 pipe = "0.2"
+
+[features]
+chromium-mojom-check = ["glob"]
