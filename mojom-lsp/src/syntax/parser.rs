@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate pest_derive;
+#[derive(Parser)]
+#[grammar = "syntax/mojom.pest"]
+pub(crate) struct MojomParser;
 
-mod parser;
-mod syntax;
-mod traverse;
-mod typespec;
+pub(crate) type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
 
-pub use syntax::*;
-pub use traverse::{preorder, Traversal};
-pub use typespec::typespec;
+pub(crate) fn consume_token(rule: Rule, pairs: &mut Pairs) {
+    if pairs.next().unwrap().as_rule() != rule {
+        unreachable!()
+    }
+}

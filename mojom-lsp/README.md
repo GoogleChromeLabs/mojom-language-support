@@ -1,21 +1,21 @@
-# mojom-lsp-server
+# mojom-lsp
 
 A [language server](https://microsoft.github.io/language-server-protocol/specification) for Mojom IDL. It supports:
 
 - Syntax check
 - Goto definition
 
-mojom-lsp is tested on Visual Studio Code with [vscode-mojom-idl](../vscode-mojom-idl/README.md) extension and Emacs with [eglot](https://github.com/joaotavora/eglot).
+mojom-lsp is tested on Visual Studio Code with [vscode-mojom-idl](../vscode-mojom-idl) extension and Emacs with [eglot](https://github.com/joaotavora/eglot).
 
 ## Setup
 
 mojom-lsp is at an early stage of development and you need to build it from source. mojom-lsp requires stable Rust to build.
 
 ```sh
-$ cargo build --release -p mojom-lsp-server
+$ cargo build --release --bin mojom-lsp-server
 ```
 
-The server will be generated in `../target/release/`. Copy the binary `mojom-lsp-server` into your `$PATH`, or add `../target/release/` to your `$PATH`.
+The server will be generated in `target/release/`. Copy the binary `mojom-lsp-server` into your `$PATH`, or add `target/release/` to your `$PATH`.
 
 ## Editor settings
 

@@ -14,7 +14,7 @@
 
 use pest::{Parser, Position, Span};
 
-use crate::parser::{consume_token, MojomParser, Pairs, Rule};
+use super::parser::{consume_token, MojomParser, Pairs, Rule};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Range {

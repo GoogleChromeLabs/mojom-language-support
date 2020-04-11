@@ -2,7 +2,7 @@
 
 This repository provides language support for [Mojom IDL](https://chromium.googlesource.com/chromium/src/+/master/mojo/public/tools/bindings/README.md).
 
-- [mojom-lsp-server](./mojom-lsp-server/README.md)
+- [mojom-lsp](./mojom-lsp/README.md)
 - [vscode-mojom-idl](./vscode-mojom-idl/README.md)
 
 ## License

@@ -32,7 +32,7 @@ fn parse_single_mojom<P: AsRef<Path>>(path: P) -> ParseResult {
     reader.read_to_string(&mut input).unwrap();
 
     let instant = Instant::now();
-    match mojom_syntax::parse(&input) {
+    match mojom_lsp::syntax::parse(&input) {
         Ok(_mojom) => {
             let elapsed = instant.elapsed();
             println!("OK: {:?}", path.as_ref());

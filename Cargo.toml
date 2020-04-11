@@ -1,7 +1,0 @@
-[workspace]
-
-members = [
-    "chromium-mojom-check",
-    "mojom-lsp-server",
-    "mojom-syntax",
-]

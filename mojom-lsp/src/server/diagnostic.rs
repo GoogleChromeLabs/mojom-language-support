@@ -21,6 +21,8 @@ use std::thread::{self, JoinHandle};
 
 use lsp_types::Url as Uri;
 
+use crate::syntax;
+
 use super::imported_files::{check_imports, ImportedFiles};
 use super::messagesender::MessageSender;
 use super::mojomast::MojomAst;
@@ -175,10 +177,10 @@ impl Diagnostic {
     }
 
     fn check_syntax(&mut self, uri: Uri, text: String) {
-        let mojom = mojom_syntax::parse(&text);
+        let mojom = syntax::parse(&text);
         let diagnostics = match mojom {
             Ok(mojom) => {
-                let analytics = crate::semantic::check_semantics(&text, &mojom);
+                let analytics = super::semantic::check_semantics(&text, &mojom);
                 // TODO: Don't store ast when semantics check fails?
                 self.ast = Some(MojomAst::from_mojom(
                     uri.clone(),
@@ -214,10 +216,7 @@ impl Diagnostic {
     }
 }
 
-pub(crate) fn into_lsp_range(
-    start: &mojom_syntax::LineCol,
-    end: &mojom_syntax::LineCol,
-) -> lsp_types::Range {
+pub(crate) fn into_lsp_range(start: &syntax::LineCol, end: &syntax::LineCol) -> lsp_types::Range {
     lsp_types::Range {
         start: lsp_types::Position::new(start.line as u64, start.col as u64),
         end: lsp_types::Position::new(end.line as u64, end.col as u64),
@@ -273,7 +272,7 @@ fn get_identifier<'a>(text: &'a str, pos: &lsp_types::Position) -> &'a str {
 }
 
 fn find_definition_in_doc(ast: &MojomAst, ident: &str) -> Option<lsp_types::Location> {
-    crate::definition::find_definition_preorder(ident, ast)
+    super::definition::find_definition_preorder(ident, ast)
 }
 
 fn find_definition_in_imported_files(

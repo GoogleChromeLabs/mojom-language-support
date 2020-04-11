@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::syntax::*;
+use super::syntax::*;
 
 #[derive(Debug, PartialEq)]
 pub enum Traversal<'a> {

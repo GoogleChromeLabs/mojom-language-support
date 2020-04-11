@@ -18,7 +18,7 @@ use std::path::Path;
 
 use lsp_types::{Location, Range, Url};
 
-use mojom_syntax::{preorder, Traversal};
+use crate::syntax::{self, preorder, Traversal};
 
 use super::definition::create_lsp_range;
 use super::mojomast::MojomAst;
@@ -88,7 +88,7 @@ pub(crate) fn check_imports<P: AsRef<Path>>(root_path: P, ast: &MojomAst) -> Imp
     let mut parsed_imports = Vec::new();
     for stmt in &ast.mojom.stmts {
         match stmt {
-            mojom_syntax::Statement::Import(stmt) => {
+            syntax::Statement::Import(stmt) => {
                 let path = ast.text(&stmt.path);
                 let path = root_path.join(&path[1..path.len() - 1]);
                 let imported = parse_imported(&path);
@@ -104,7 +104,7 @@ pub(crate) fn check_imports<P: AsRef<Path>>(root_path: P, ast: &MojomAst) -> Imp
 }
 
 fn add_definition<'a, 'b, 'c>(
-    field: &'a mojom_syntax::Range,
+    field: &'a syntax::Range,
     ast: &'b MojomAst,
     path: &'c mut Vec<&'b str>,
     definitions: &'c mut Vec<ImportDefinition>,
@@ -124,8 +124,7 @@ fn parse_imported<P: AsRef<Path>>(path: P) -> ImportResult {
     let mut text = String::new();
     File::open(path.as_ref())?.read_to_string(&mut text)?;
 
-    let mojom =
-        mojom_syntax::parse(&text).map_err(|err| ImportError::SyntaxError(err.to_string()))?;
+    let mojom = syntax::parse(&text).map_err(|err| ImportError::SyntaxError(err.to_string()))?;
 
     // Unwrap shoud be safe because we opened file already.
     let path = path.as_ref().canonicalize().unwrap();
@@ -182,21 +181,21 @@ mod tests {
 
     #[test]
     fn test_parse_imported() {
-        let res = parse_imported("../testdata/my_interface.mojom");
+        let res = parse_imported("testdata/my_interface.mojom");
         assert!(res.is_ok());
     }
 
     #[test]
     fn test_check_imports() {
-        let root_path = "../testdata";
-        let file_path = "../testdata/my_service.mojom";
+        let root_path = "testdata";
+        let file_path = "testdata/my_service.mojom";
         let mut text = String::new();
         File::open(&file_path)
             .unwrap()
             .read_to_string(&mut text)
             .unwrap();
         let uri = create_uri(&file_path);
-        let mojom = mojom_syntax::parse(&text).unwrap();
+        let mojom = syntax::parse(&text).unwrap();
         let analytics = semantic::check_semantics(&text, &mojom);
         let ast = MojomAst::from_mojom(uri, text, mojom, analytics.module);
 

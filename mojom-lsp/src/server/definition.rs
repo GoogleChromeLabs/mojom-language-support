@@ -14,11 +14,11 @@
 
 use lsp_types::{Location, Position, Range};
 
-use mojom_syntax::{preorder, Traversal};
+use crate::syntax::{self, preorder, Traversal};
 
 use super::mojomast::MojomAst;
 
-pub(crate) fn create_lsp_range(ast: &MojomAst, field: &mojom_syntax::Range) -> Range {
+pub(crate) fn create_lsp_range(ast: &MojomAst, field: &syntax::Range) -> Range {
     let pos = ast.line_col(field.start);
     let start = Position::new(pos.line as u64, pos.col as u64);
     let pos = ast.line_col(field.end);
@@ -28,7 +28,7 @@ pub(crate) fn create_lsp_range(ast: &MojomAst, field: &mojom_syntax::Range) -> R
 
 fn match_field<'a, 'b, 'c>(
     target: &'a str,
-    field: &'b mojom_syntax::Range,
+    field: &'b syntax::Range,
     ast: &'a MojomAst,
     path: &'c mut Vec<&'a str>,
 ) -> Option<Location> {

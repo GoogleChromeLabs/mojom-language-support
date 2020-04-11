@@ -232,7 +232,7 @@ where
     let mut reader = BufReader::new(reader);
     let mut writer = BufWriter::new(writer);
 
-    let params = crate::initialization::initialize(&mut reader, &mut writer)?;
+    let params = super::initialization::initialize(&mut reader, &mut writer)?;
 
     let root_path = get_root_path(&params).unwrap_or(PathBuf::new());
 
@@ -256,8 +256,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::protocol::{self, read_message, write_notification, write_request};
     use super::*;
-    use crate::protocol::{self, read_message, write_notification, write_request};
 
     use lsp_types::notification::*;
     use lsp_types::request::*;

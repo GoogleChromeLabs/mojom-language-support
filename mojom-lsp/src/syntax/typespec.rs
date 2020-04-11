@@ -14,7 +14,7 @@
 
 use pest::Parser;
 
-use crate::parser::{consume_token, MojomParser, Pairs, Rule};
+use super::parser::{consume_token, MojomParser, Pairs, Rule};
 
 // TODO: Support pending_receiver<T> and pending_remote<T>.
 #[derive(Debug, PartialEq)]

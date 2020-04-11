@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use mojom_syntax::{self, Module, MojomFile};
+use crate::syntax::{self, Module, MojomFile};
 
 #[derive(Debug)]
 pub(crate) struct MojomAst {
@@ -38,14 +38,14 @@ impl MojomAst {
         }
     }
 
-    pub(crate) fn text(&self, field: &mojom_syntax::Range) -> &str {
+    pub(crate) fn text(&self, field: &syntax::Range) -> &str {
         // Can panic.
         &self.text[field.start..field.end]
     }
 
-    pub(crate) fn line_col(&self, offset: usize) -> mojom_syntax::LineCol {
+    pub(crate) fn line_col(&self, offset: usize) -> syntax::LineCol {
         // Can panic.
-        mojom_syntax::line_col(&self.text, offset).unwrap()
+        syntax::line_col(&self.text, offset).unwrap()
     }
 
     pub(crate) fn module_name(&self) -> Option<&str> {
