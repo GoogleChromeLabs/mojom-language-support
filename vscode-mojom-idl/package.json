@@ -35,7 +35,17 @@
         "scopeName": "source.mojom",
         "path": "./syntaxes/mojom.tmLanguage.json"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Mojom",
+      "properties": {
+        "mojom.useLanguageServer": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use mojom-language-server."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
