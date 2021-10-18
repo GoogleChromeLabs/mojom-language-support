@@ -678,6 +678,10 @@ mod tests {
             "[Attr1, Attr2=NameVal, Attr3=123]",
             parse_part(Rule::attribute_section, "[Attr1, Attr2=NameVal, Attr3=123]")
         );
+        assert_eq!(
+            "[Attr=foo.bar.baz]",
+            parse_part(Rule::attribute_section, "[Attr=foo.bar.baz]")
+        );
     }
 
     #[test]

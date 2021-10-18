@@ -43,7 +43,11 @@ attribute_section = {
   t_lbracket ~ t_rbracket |
   t_lbracket ~ attribute ~ (t_comma ~ attribute)* ~ t_rbracket
 }
-attribute = { name ~ t_equal ~ name | name ~ t_equal ~ literal | name }
+attribute = {
+  name ~ t_equal ~ identifier |
+  name ~ t_equal ~ literal |
+  name
+}
 
 struct_stmt = { attribute_section? ~ t_struct ~ name ~ struct_body? ~ t_semicolon }
 struct_body = { t_lbrace ~ struct_item* ~ t_rbrace }
