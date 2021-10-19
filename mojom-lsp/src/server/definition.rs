@@ -20,9 +20,9 @@ use super::mojomast::MojomAst;
 
 pub(crate) fn create_lsp_range(ast: &MojomAst, field: &syntax::Range) -> Range {
     let pos = ast.line_col(field.start);
-    let start = Position::new(pos.line as u64, pos.col as u64);
+    let start = Position::new(pos.line as u32, pos.col as u32);
     let pos = ast.line_col(field.end);
-    let end = Position::new(pos.line as u64, pos.col as u64);
+    let end = Position::new(pos.line as u32, pos.col as u32);
     Range::new(start, end)
 }
 

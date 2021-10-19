@@ -21,7 +21,7 @@ use super::protocol::{read_message, write_success_result, Message};
 fn create_server_capabilities() -> lsp_types::ServerCapabilities {
     let options = lsp_types::TextDocumentSyncOptions {
         open_close: Some(true),
-        change: Some(lsp_types::TextDocumentSyncKind::Full),
+        change: Some(lsp_types::TextDocumentSyncKind::FULL),
         will_save: None,
         will_save_wait_until: None,
         save: None,
@@ -36,7 +36,7 @@ fn create_server_capabilities() -> lsp_types::ServerCapabilities {
         hover_provider: None,
         completion_provider: None,
         signature_help_provider: None,
-        definition_provider: Some(true),
+        definition_provider: Some(lsp_types::OneOf::Left(true)),
         type_definition_provider: None,
         implementation_provider: None,
         references_provider: None,
@@ -52,10 +52,14 @@ fn create_server_capabilities() -> lsp_types::ServerCapabilities {
         document_link_provider: None,
         color_provider: None,
         folding_range_provider: None,
-        declaration_provider: Some(false),
+        declaration_provider: Some(lsp_types::DeclarationCapability::Simple(true)),
         execute_command_provider: None,
         workspace: None,
         experimental: None,
+        call_hierarchy_provider: None,
+        semantic_tokens_provider: None,
+        moniker_provider: None,
+        linked_editing_range_provider: None,
     }
 }
 

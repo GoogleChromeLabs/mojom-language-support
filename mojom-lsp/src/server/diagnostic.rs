@@ -31,8 +31,10 @@ use super::protocol::NotificationMessage;
 pub(crate) fn create_diagnostic(range: lsp_types::Range, message: String) -> lsp_types::Diagnostic {
     lsp_types::Diagnostic {
         range: range,
-        severity: Some(lsp_types::DiagnosticSeverity::Error),
+        severity: Some(lsp_types::DiagnosticSeverity::ERROR),
         code: Some(lsp_types::NumberOrString::String("mojom".to_owned())),
+        code_description: None,
+        data: None,
         source: Some("mojom-lsp".to_owned()),
         message: message,
         related_information: None,
@@ -218,8 +220,8 @@ impl Diagnostic {
 
 pub(crate) fn into_lsp_range(start: &syntax::LineCol, end: &syntax::LineCol) -> lsp_types::Range {
     lsp_types::Range {
-        start: lsp_types::Position::new(start.line as u64, start.col as u64),
-        end: lsp_types::Position::new(end.line as u64, end.col as u64),
+        start: lsp_types::Position::new(start.line as u32, start.col as u32),
+        end: lsp_types::Position::new(end.line as u32, end.col as u32),
     }
 }
 

@@ -271,8 +271,10 @@ mod tests {
             workspace: None,
             text_document: None,
             window: None,
+            general: None,
             experimental: None,
         };
+        // TODO: Try to remove allow(deprecated)
         #[allow(deprecated)]
         let params = lsp_types::InitializeParams {
             process_id: None,
@@ -283,6 +285,7 @@ mod tests {
             trace: None,
             workspace_folders: None,
             client_info: None,
+            locale: None,
         };
         let params = serde_json::to_value(&params).unwrap();
 
