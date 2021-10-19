@@ -22,7 +22,7 @@ import {
   LanguageClient,
   LanguageClientOptions,
   Executable,
-} from "vscode-languageclient";
+} from "vscode-languageclient/node";
 
 const SERVER_COMMAND = "mojom-lsp-server";
 
