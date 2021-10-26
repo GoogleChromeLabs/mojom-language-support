@@ -22,11 +22,13 @@ import {
   LanguageClient,
   LanguageClientOptions,
   Executable,
+  State,
 } from "vscode-languageclient/node";
 
 const SERVER_COMMAND = "mojom-lsp-server";
 
-let client: LanguageClient;
+let client: LanguageClient | null = null;
+let lspStatusBarItem: vscode.StatusBarItem;
 
 function startClient() {
   let serverOptions: Executable = {
@@ -44,7 +46,36 @@ function startClient() {
     clientOptions
   );
 
+  client.onDidChangeState((event) => {
+    switch (event.newState) {
+      case State.Starting:
+        lspStatusBarItem.tooltip = "Starting";
+        break;
+      case State.Running:
+        lspStatusBarItem.tooltip = "Running";
+        break;
+      case State.Stopped:
+        lspStatusBarItem.tooltip = "Stopped";
+        break;
+    }
+  });
   client.start();
+
+  if (IsMojomTextEditor(vscode.window.activeTextEditor)) {
+    lspStatusBarItem.show();
+  }
+}
+
+async function stopClient(): Promise<void> {
+  lspStatusBarItem.hide();
+
+  if (!client) {
+    return;
+  }
+
+  const result = client.stop();
+  client = null;
+  return result;
 }
 
 async function hasServerBinary(): Promise<boolean> {
@@ -61,7 +92,7 @@ async function installServerBinary(): Promise<boolean> {
   const task = new vscode.Task(
     { type: "cargo", task: "install" },
     vscode.workspace.workspaceFolders![0],
-    "Installing lsp server",
+    "Installing mojom lsp server",
     "mojom-lsp",
     new vscode.ShellExecution("cargo install mojom-lsp")
   );
@@ -83,30 +114,63 @@ async function installServerBinary(): Promise<boolean> {
 async function tryToInstallLanguageServer(
   configuration: vscode.WorkspaceConfiguration
 ) {
+  const message = "Install mojom language server? (Rust toolchain required)";
   const selected = await vscode.window.showInformationMessage(
-    "Install mojom-lsp-server (Rust toolchain required) ?",
-    "Install",
+    message,
+    "Yes",
+    "No",
     "Never"
   );
-  if (selected === "Install") {
+  if (selected === "Yes") {
     const installed = await installServerBinary();
     if (installed) {
       startClient();
     }
   } else if (selected === "Never") {
-    configuration.update("useLanguageServer", false);
+    configuration.update("enableLanguageServer", "Never");
   }
 }
 
-export async function activate(context: vscode.ExtensionContext) {
+async function applyConfigurations() {
   const configuration = vscode.workspace.getConfiguration("mojom");
-  const useLanguageServer = configuration.get<boolean>("useLanguageServer");
-  const shouldStartClient = useLanguageServer && (await hasServerBinary());
+  const enableLanguageServer = configuration.get<string>("enableLanguageServer");
+  const shouldStartClient = (enableLanguageServer === "Enabled") && (await hasServerBinary());
   if (shouldStartClient) {
     startClient();
-  } else if (useLanguageServer) {
+  } else if (enableLanguageServer === "Enabled") {
     tryToInstallLanguageServer(configuration);
+  } else if (enableLanguageServer !== "Enabled") {
+    stopClient();
   }
+}
+
+function IsMojomTextEditor(editor: vscode.TextEditor | undefined): boolean {
+  return editor && editor.document.languageId === "mojom";
+}
+
+export async function activate(context: vscode.ExtensionContext) {
+  // Set up a status bar item for mojom-lsp.
+  lspStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+  lspStatusBarItem.text = "mojom-lsp";
+  lspStatusBarItem.hide();
+
+  // Register Listeners
+  const subscriptions = context.subscriptions;
+  subscriptions.push(vscode.workspace.onDidChangeConfiguration((event) => {
+    if (event.affectsConfiguration("mojom")) {
+      applyConfigurations();
+    }
+  }));
+  subscriptions.push(vscode.window.onDidChangeActiveTextEditor((editor) => {
+    const shouldShowStatusBarItem = IsMojomTextEditor(editor) && client;
+    if (shouldShowStatusBarItem) {
+      lspStatusBarItem.show();
+    } else {
+      lspStatusBarItem.hide();
+    }
+  }));
+
+  applyConfigurations();
 }
 
 export function deactivate(): Thenable<void> | undefined {

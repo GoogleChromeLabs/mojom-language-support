@@ -39,10 +39,11 @@
     "configuration": {
       "title": "Mojom",
       "properties": {
-        "mojom.useLanguageServer": {
-          "type": "boolean",
-          "default": true,
-          "description": "Use mojom-language-server."
+        "mojom.enableLanguageServer": {
+          "type": "string",
+          "default": "Enabled",
+          "enum": ["Enabled", "Disabled", "Never"],
+          "description": "Enable mojom-language-server."
         }
       }
     }
