@@ -12,7 +12,7 @@ mojom-lsp is tested on Visual Studio Code with [vscode-mojom](../vscode-mojom) e
 mojom-lsp requires stable Rust to build. Run the following command to install `mojom-lsp`.
 
 ```sh
-# This generates `mojom-lsp-server` binary.
+# This generates `mojom-lsp` binary.
 $ cargo install mojom-lsp
 ```
 
