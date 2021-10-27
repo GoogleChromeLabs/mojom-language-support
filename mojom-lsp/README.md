@@ -5,11 +5,11 @@ A [language server](https://microsoft.github.io/language-server-protocol/specifi
 - Syntax check
 - Goto definition
 
-mojom-lsp is tested on Visual Studio Code with [vscode-mojom-idl](../vscode-mojom-idl) extension and Emacs with [eglot](https://github.com/joaotavora/eglot).
+mojom-lsp is tested on Visual Studio Code with [vscode-mojom](../vscode-mojom) extension and Emacs with [eglot](https://github.com/joaotavora/eglot).
 
 ## Installation
 
-mojom-lsp requires stable Rust to build. Run the following command to install `mojom-lsp-server`.
+mojom-lsp requires stable Rust to build. Run the following command to install `mojom-lsp`.
 
 ```sh
 # This generates `mojom-lsp-server` binary.
@@ -28,7 +28,7 @@ mojom-lsp itself doesn't provide syntax highlighting for now. You need to config
 
 ### VSCode
 
-Use [vscode-mojom-idl](../vscode-mojom-idl) extension.
+Use [vscode-mojom](../vscode-mojom) extension.
 
 ### Vim
 

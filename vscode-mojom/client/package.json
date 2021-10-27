@@ -1,13 +1,13 @@
 {
-  "name": "mojom-lsp-client",
-  "description": "Mojom LSP client",
+  "name": "vscode-mojom-client",
+  "description": "Mojom Language Client",
   "author": "The Chromium Authors",
   "repository": {
     "type": "git",
-    "url": "https://github.com/GoogleChromeLabs/mojom-language-support.git"
+    "url": "https://github.com/GoogleChromeLabs/mojom-language-support/vscode-mojom"
   },
   "license": "Apache-2.0",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "engines": {
     "vscode": "^1.33.0"
   },
