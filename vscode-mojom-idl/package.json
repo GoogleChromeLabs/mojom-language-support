@@ -2,16 +2,21 @@
   "name": "vscode-mojom-idl",
   "author": "The Chromium Authors",
   "displayName": "Mojom IDL",
-  "description": "Syntax highlighting for mojom",
+  "description": "Syntax highlighting for Mojom",
   "license": "Apache-2.0",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "Chromium",
+    "Mojom"
+  ],
+  "publisher": "Google",
   "repository": {
     "type": "git",
     "url": "https://github.com/GoogleChromeLabs/mojom-language-support.git"
   },
-  "categories": [
-    "Programming Languages"
-  ],
   "engines": {
     "vscode": "^1.34.0"
   },
