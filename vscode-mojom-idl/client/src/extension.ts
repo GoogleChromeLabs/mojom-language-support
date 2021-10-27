@@ -25,7 +25,7 @@ import {
   State,
 } from "vscode-languageclient/node";
 
-const SERVER_COMMAND = "mojom-lsp-server";
+const SERVER_COMMAND = "mojom-lsp";
 
 let client: LanguageClient | null = null;
 let lspStatusBarItem: vscode.StatusBarItem;
@@ -92,7 +92,7 @@ async function installServerBinary(): Promise<boolean> {
   const task = new vscode.Task(
     { type: "cargo", task: "install" },
     vscode.workspace.workspaceFolders![0],
-    "Installing mojom lsp server",
+    "Installing mojom-lsp",
     "mojom-lsp",
     new vscode.ShellExecution("cargo install mojom-lsp")
   );
@@ -114,7 +114,7 @@ async function installServerBinary(): Promise<boolean> {
 async function tryToInstallLanguageServer(
   configuration: vscode.WorkspaceConfiguration
 ) {
-  const message = "Install mojom language server? (Rust toolchain required)";
+  const message = "Install Mojom Language Server? (Rust toolchain required)";
   const selected = await vscode.window.showInformationMessage(
     message,
     "Yes",

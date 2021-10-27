@@ -4,7 +4,7 @@
   "displayName": "Mojom IDL",
   "description": "Syntax highlighting for Mojom",
   "license": "Apache-2.0",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "categories": [
     "Programming Languages"
   ],
@@ -48,7 +48,7 @@
           "type": "string",
           "default": "Enabled",
           "enum": ["Enabled", "Disabled", "Never"],
-          "description": "Enable mojom-language-server."
+          "description": "Enable Mojom Language Server."
         }
       }
     }

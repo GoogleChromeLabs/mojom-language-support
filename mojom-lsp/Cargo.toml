@@ -1,6 +1,6 @@
 [package]
 name = "mojom-lsp"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["The Chromium Authors"]
 edition = "2018"
 description = "A language server for Mojom IDL"
@@ -9,7 +9,7 @@ repository = "https://github.com/GoogleChromeLabs/mojom-language-support"
 readme = "README.md"
 
 [[bin]]
-name = "mojom-lsp-server"
+name = "mojom-lsp"
 
 [[bin]]
 name = "chromium-mojom-check"
@@ -25,6 +25,7 @@ pest = "2.0"
 pest_derive = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+structopt = "0.3"
 
 [dev-dependencies]
 pipe = "0.2"
