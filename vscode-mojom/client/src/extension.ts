@@ -55,7 +55,12 @@ function startClient() {
         lspStatusBarItem.tooltip = "Running";
         break;
       case State.Stopped:
-        lspStatusBarItem.tooltip = "Stopped";
+        lspStatusBarItem.hide();
+        if (client.initializeResult === undefined) {
+          // Failed to start the server, update the configuration to disable the server.
+          const configuration = vscode.workspace.getConfiguration("mojom");
+          configuration.update("enableLanguageServer", "Disabled");
+        }
         break;
     }
   });
@@ -67,8 +72,6 @@ function startClient() {
 }
 
 async function stopClient(): Promise<void> {
-  lspStatusBarItem.hide();
-
   if (!client) {
     return;
   }
@@ -125,6 +128,8 @@ async function tryToInstallLanguageServer(
     const installed = await installServerBinary();
     if (installed) {
       startClient();
+    } else {
+      configuration.update("enableLanguageServer", "Disabled");
     }
   } else if (selected === "Never") {
     configuration.update("enableLanguageServer", "Never");
