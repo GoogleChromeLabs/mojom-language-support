@@ -4,7 +4,7 @@
   "displayName": "Mojom IDL",
   "description": "Syntax highlighting for Mojom",
   "license": "Apache-2.0",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "categories": [
     "Programming Languages"
   ],
