@@ -1,69 +1,56 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Mojom",
+  "scopeName": "source.mojom",
   "patterns": [
     {
       "include": "#comments"
     },
     {
-      "include": "#keywords"
+      "include": "#attribute"
     },
     {
-      "include": "#strings"
+      "include": "#string"
     },
     {
-      "include": "#enums"
+      "include": "#module"
     },
     {
-      "include": "#complex-types"
+      "include": "#import"
+    },
+    {
+      "include": "#const_decl"
+    },
+    {
+      "include": "#enum"
+    },
+    {
+      "include": "#enum_without_body"
+    },
+    {
+      "include": "#struct"
+    },
+    {
+      "include": "#struct_without_body"
+    },
+    {
+      "include": "#interface"
+    },
+    {
+      "include": "#union"
     }
   ],
   "repository": {
-    "keywords": {
-      "patterns": [
-        {
-          "name": "constant.language.mojom",
-          "match": "\\b(true|false)\\b"
-        },
-        {
-          "name": "keyword.other.mojom",
-          "match": "\\b(default|import|module)\\b"
-        },
-        {
-          "name": "storage.type.other.mojom",
-          "match": "\\b(string|array|handle|map|pending_associated_receiver|pending_associated_remote|pending_receiver|pending_remote)\\b"
-        },
-        {
-          "name": "storage.type.numeric.mojom",
-          "match": "\\b(bool|int8|uint8|int16|uint16|int32|uint32|int64|uint64|float|double)\\b"
-        },
-        {
-          "name": "storage.modifier.mojom",
-          "match": "\\b(const|associated)\\b"
-        }
-      ]
-    },
-    "strings": {
-      "name": "string.quoted.double.mojom",
-      "begin": "\"",
-      "end": "\"",
-      "patterns": [
-        {
-          "name": "constant.character.escape.mojom",
-          "match": "\\\\."
-        }
-      ]
-    },
     "block_comment": {
-      "comment": "Block comment",
       "name": "comment.block.mojom",
+      "comment": "Block comment",
       "begin": "/\\*",
       "end": "\\*/",
       "patterns": []
     },
     "line_comment": {
-      "comment": "Single-line comment",
       "name": "comment.line.mojom",
+      "comment": "Single-line comment",
       "begin": "//",
       "end": "$",
       "patterns": []
@@ -78,48 +65,300 @@
         }
       ]
     },
-    "enums": {
-      "begin": "^\\s*(enum)\\s+(\\w+)",
+    "attribute": {
+      "name": "meta.attribute.mojom",
+      "begin": "\\[",
+      "end": "\\]"
+    },
+    "string": {
+      "name": "string.quoted.double.mojom",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.mojom",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "numeric": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.mojom",
+          "match": "(-?0[xX][0-9a-fA-F]+)"
+        },
+        {
+          "name": "constant.numeric.float.mojom",
+          "match": "(-?[0-9]*\\.?)[0-9]+"
+        },
+        {
+          "name": "constant.numeric.decimal.mojom",
+          "match": "(-?[0-9])+"
+        }
+      ]
+    },
+    "literals": {
+      "patterns": [
+        {
+          "include": "#string"
+        },
+        {
+          "include": "#numeric"
+        },
+        {
+          "name": "constant.language.mojom",
+          "match": "\\b(true|false|default)\\b"
+        }
+      ]
+    },
+    "type": {
+      "patterns": [
+        {
+          "name": "storage.type.simple.mojom",
+          "match": "\\b(bool|int8|uint8|int16|uint16|int32|uint32|int64|uint64|float|double|string)\\b"
+        },
+        {
+          "name": "storage.type.complex.mojom",
+          "match": "\\b(array|map|pending_remote|pending_receiver|pending_associated_remote|pending_associated_receiver|handle|data_pipe_consumer|data_pipe_producer)\\b"
+        },
+        {
+          "name": "entity.name.type.class.mojom",
+          "match": "([A-Z]|[_.[:alnum:]]+\\.)[[:alnum:]]*"
+        },
+        {
+          "name": "meta.generic.mojom",
+          "begin": "\\<",
+          "end": "\\>",
+          "patterns": [
+            {
+              "include": "#type"
+            }
+          ]
+        }
+      ]
+    },
+    "module": {
+      "name": "meta.module.mojom",
+      "begin": "(module)\\s+([_.[:alnum:]]+)",
       "beginCaptures": {
         "1": {
-          "name": "storage.modifier.mojom"
+          "name": "keyword.other.mojom"
+        },
+        "2": {
+          "name": "entity.name.type.namespace.mojom"
+        }
+      },
+      "end": ";"
+    },
+    "import": {
+      "name": "meta.import.mojom",
+      "begin": "(import)",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.other.mojom"
+        }
+      },
+      "end": ";",
+      "patterns": [
+        {
+          "include": "#string"
+        }
+      ]
+    },
+    "const_decl": {
+      "patterns": [
+        {
+          "name": "meta.constant.mojom",
+          "begin": "(const)",
+          "beginCaptures": {
+            "1": {
+              "name": "storage.type.constant.mojom"
+            }
+          },
+          "end": ";",
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#numeric"
+            },
+            {
+              "include": "#string"
+            },
+            {
+              "include": "#type"
+            },
+            {
+              "name": "entity.name.constant.mojom",
+              "match": "[._[:alnum:]]+"
+            }
+          ]
+        }
+      ]
+    },
+    "enum": {
+      "name": "meta.enum.mojom",
+      "begin": "(enum)\\s+([_[:alnum:]]+)\\s*{",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.mojom"
         },
         "2": {
           "name": "entity.name.type.enum.mojom"
         }
       },
-      "end": "}",
-      "name": "meta.enum.mojom",
+      "end": "}\\s*;",
       "patterns": [
         {
           "include": "#comments"
+        },
+        {
+          "include": "#numeric"
+        },
+        {
+          "name": "variable.other.mojom",
+          "match": "[._[:alnum:]]+"
         }
       ]
     },
-    "complex-types": {
-      "begin": "^\\s*(interface|struct|union)\\s+(\\w+)",
+    "enum_without_body": {
+      "name": "meta.enum_without_body.mojom",
+      "match": "(enum)\\s+([_[:alnum:]]+)\\s*;",
+      "captures": {
+        "1": {
+          "name": "storage.type.mojom"
+        },
+        "2": {
+          "name": "entity.name.type.enum.mojom"
+        }
+      }
+    },
+    "struct": {
+      "name": "meta.struct.mojom",
+      "begin": "(struct)\\s+([_[:alnum:]]+)\\s*{",
       "beginCaptures": {
         "1": {
-          "name": "storage.modifier.mojom"
+          "name": "storage.type.mojom"
         },
         "2": {
           "name": "entity.name.type.struct.mojom"
         }
       },
-      "end": "}",
-      "name": "meta.struct.mojom",
+      "end": "}\\s*;",
       "patterns": [
         {
           "include": "#comments"
         },
         {
-          "include": "#strings"
+          "include": "#const_decl"
         },
         {
-          "include": "#keywords"
+          "include": "#enum"
+        },
+        {
+          "include": "#type"
+        },
+        {
+          "include": "#literals"
+        },
+        {
+          "name": "variable.other.mojom",
+          "match": "[._[:alnum:]]+"
+        }
+      ]
+    },
+    "struct_without_body": {
+      "name": "meta.struct_without_body.mojom",
+      "match": "(struct)\\s+([_[:alnum:]]+)\\s*;",
+      "captures": {
+        "1": {
+          "name": "storage.type.mojom"
+        },
+        "2": {
+          "name": "entity.name.type.struct.mojom"
+        }
+      }
+    },
+    "interface": {
+      "name": "meta.interface.mojom",
+      "begin": "(interface)\\s+([_[:alnum:]]+)",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.mojom"
+        },
+        "2": {
+          "name": "entity.name.type.interface.mojom"
+        }
+      },
+      "end": "}\\s*;",
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#attribute"
+        },
+        {
+          "include": "#const_decl"
+        },
+        {
+          "include": "#enum"
+        },
+        {
+          "include": "#method_decl"
+        }
+      ]
+    },
+    "method_decl": {
+      "name": "meta.method.mojom",
+      "begin": "([_[:alnum:]]+)",
+      "beginCaptures": {
+        "1": {
+          "name": "entity.name.function.mojom"
+        }
+      },
+      "end": ";",
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#type"
+        },
+        {
+          "include": "#literals"
+        },
+        {
+          "name": "variable.other.mojom",
+          "match": "[._[:alnum:]]+"
+        }
+      ]
+    },
+    "union": {
+      "name": "meta.union.mojom",
+      "begin": "(union)\\s+([_[:alnum:]]+)\\s*{",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.mojom"
+        },
+        "2": {
+          "name": "entity.name.type.union.mojom"
+        }
+      },
+      "end": "}\\s*;",
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#type"
+        },
+        {
+          "name": "variable.other.mojom",
+          "match": "[._[:alnum:]]+"
         }
       ]
     }
-  },
-  "scopeName": "source.mojom"
+  }
 }
