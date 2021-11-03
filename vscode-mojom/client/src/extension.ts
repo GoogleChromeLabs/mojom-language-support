@@ -81,14 +81,22 @@ async function stopClient(): Promise<void> {
   return result;
 }
 
-async function hasServerBinary(): Promise<boolean> {
+async function hasCommand(command: string): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     const checkCommand = process.platform === "win32" ? "where" : "command -v";
-    const proc = child_process.exec(`${checkCommand} ${SERVER_COMMAND}`);
+    const proc = child_process.exec(`${checkCommand} ${command}`);
     proc.on("exit", (code) => {
       resolve(code === 0);
     });
   });
+}
+
+async function isLanguageServerIsAvailable(): Promise<boolean> {
+  return hasCommand(SERVER_COMMAND);
+}
+
+async function isCargoAvaiable(): Promise<boolean> {
+  return hasCommand("cargo");
 }
 
 async function installServerBinary(): Promise<boolean> {
@@ -117,6 +125,12 @@ async function installServerBinary(): Promise<boolean> {
 async function tryToInstallLanguageServer(
   configuration: vscode.WorkspaceConfiguration
 ) {
+  const hasCargo = await isCargoAvaiable();
+  if (!hasCargo) {
+    configuration.update("enableLanguageServer", "Disabled");
+    return;
+  }
+
   const message = "Install Mojom Language Server? (Rust toolchain required)";
   const selected = await vscode.window.showInformationMessage(
     message,
@@ -139,7 +153,7 @@ async function tryToInstallLanguageServer(
 async function applyConfigurations() {
   const configuration = vscode.workspace.getConfiguration("mojom");
   const enableLanguageServer = configuration.get<string>("enableLanguageServer");
-  const shouldStartClient = (enableLanguageServer === "Enabled") && (await hasServerBinary());
+  const shouldStartClient = (enableLanguageServer === "Enabled") && (await isLanguageServerIsAvailable());
   if (shouldStartClient) {
     startClient();
   } else if (enableLanguageServer === "Enabled") {
