@@ -111,6 +111,14 @@
         }
       ]
     },
+    "user_defined_type": {
+      "name": "entity.name.type.class.mojom",
+      "match": "\\b([A-Z]|[_.[:alnum:]]+\\.)[[:alnum:]]*\\b"
+    },
+    "capital_const": {
+      "name": "variable.other.constant.mojom",
+      "match": "\\b([A-Z]|[_.[:alnum:]]+\\.)[_A-Z]+\\b"
+    },
     "type": {
       "patterns": [
         {
@@ -122,16 +130,15 @@
           "match": "\\b(array|map|pending_remote|pending_receiver|pending_associated_remote|pending_associated_receiver|handle|data_pipe_consumer|data_pipe_producer)\\b"
         },
         {
-          "name": "entity.name.type.class.mojom",
-          "match": "([A-Z]|[_.[:alnum:]]+\\.)[[:alnum:]]*"
-        },
-        {
           "name": "meta.generic.mojom",
           "begin": "\\<",
           "end": "\\>",
           "patterns": [
             {
               "include": "#type"
+            },
+            {
+              "include": "#user_defined_type"
             }
           ]
         }
@@ -190,7 +197,7 @@
               "include": "#type"
             },
             {
-              "name": "entity.name.constant.mojom",
+              "name": "variable.other.constant.mojom",
               "match": "[._[:alnum:]]+"
             }
           ]
@@ -263,6 +270,12 @@
           "include": "#literals"
         },
         {
+          "include": "#capital_const"
+        },
+        {
+          "include": "#user_defined_type"
+        },
+        {
           "name": "variable.other.mojom",
           "match": "[._[:alnum:]]+"
         }
@@ -328,6 +341,9 @@
         },
         {
           "include": "#literals"
+        },
+        {
+          "include": "#user_defined_type"
         },
         {
           "name": "variable.other.mojom",
