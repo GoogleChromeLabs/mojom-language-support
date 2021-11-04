@@ -189,6 +189,11 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   }));
 
+  // Register commands
+  subscriptions.push(vscode.commands.registerCommand('mojom.installLanguageServer', async () => {
+    installServerBinary();
+  }));
+
   applyConfigurations();
 }
 

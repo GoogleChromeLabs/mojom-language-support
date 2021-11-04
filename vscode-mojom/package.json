@@ -51,7 +51,13 @@
           "description": "Enable Mojom Language Server."
         }
       }
-    }
+    },
+    "commands": [
+      {
+        "command": "mojom.installLanguageServer",
+        "title": "Install Mojom Language Server"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
